@@ -1,0 +1,4 @@
+[package]
+name = "storage-type-version-safe"
+version = "0.1.0"
+edition = "2021"

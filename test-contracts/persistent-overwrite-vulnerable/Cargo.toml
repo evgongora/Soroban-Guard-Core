@@ -1,0 +1,4 @@
+[package]
+name = "persistent-overwrite-vulnerable"
+version = "0.1.0"
+edition = "2021"
