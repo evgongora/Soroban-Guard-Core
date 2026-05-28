@@ -108,6 +108,10 @@ pub mod uncapped_slippage;
 pub mod unlimited_allowance;
 pub mod unvalidated_invoke_target;
 pub mod unvalidated_price;
+pub mod dead_storage_code;
+pub mod invoke_nonexistent_func;
+pub mod unintended_public_method;
+pub mod invalid_address_literal;
 mod util;
 pub mod vec_get_unwrap;
 pub mod vec_mutate_in_loop;
@@ -237,6 +241,14 @@ pub use wrapping_balance_op::WrappingBalanceOpCheck;
 pub use zero_amount::ZeroAmountCheck;
 pub use zero_transfer_event::ZeroTransferEventCheck;
 
+pub use dead_storage_code::DeadStorageCodeCheck;
+
+pub use invoke_nonexistent_func::InvokeNonexistentFuncCheck;
+
+pub use unintended_public_method::UnintendedPublicMethodCheck;
+
+pub use invalid_address_literal::InvalidAddressLiteralCheck;
+
 use serde::Serialize;
 use syn::File;
 
@@ -351,5 +363,9 @@ pub fn default_checks() -> Vec<Box<dyn Check + Send + Sync>> {
         Box::new(AdminNoGroupAuthCheck),
         Box::new(OwnershipPendingNotClearedCheck),
         Box::new(OwnershipNoApprovalInvalidationCheck),
+        Box::new(DeadStorageCodeCheck),
+        Box::new(InvokeNonexistentFuncCheck),
+        Box::new(UnintendedPublicMethodCheck),
+        Box::new(InvalidAddressLiteralCheck),
     ]
 }
