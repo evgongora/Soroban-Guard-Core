@@ -1,0 +1,4 @@
+[package]
+name = "map_linear_scan_vulnerable"
+version = "0.1.0"
+edition = "2021"
