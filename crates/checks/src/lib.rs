@@ -93,6 +93,7 @@ pub mod unvalidated_invoke_target;
 pub mod unvalidated_price;
 pub mod redundant_auth_args;
 mod util;
+pub mod vec_get_unwrap;
 pub mod vec_push_in_loop;
 pub mod vesting_cliff;
 pub mod weak_randomness;
