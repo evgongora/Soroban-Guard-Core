@@ -67,6 +67,7 @@ pub mod overflow;
 pub mod ownership_immediate;
 pub mod ownership_no_event;
 pub mod ownership_transfer;
+pub mod panic_raw_int;
 pub mod panic_usage;
 pub mod partial_write_on_error;
 pub mod persistent_for_temp;
@@ -188,6 +189,7 @@ pub use overflow::UncheckedArithmeticCheck;
 pub use ownership_immediate::OwnershipImmediateCheck;
 pub use ownership_no_event::OwnershipNoEventCheck;
 pub use ownership_transfer::OwnershipTransferCheck;
+pub use panic_raw_int::PanicRawIntCheck;
 pub use panic_usage::PanicUsageCheck;
 pub use partial_write_on_error::PartialWriteOnErrorCheck;
 pub use persistent_for_temp::PersistentForTempCheck;
@@ -281,6 +283,7 @@ pub fn default_checks() -> Vec<Box<dyn Check + Send + Sync>> {
         Box::new(UnsafeStoragePatternsCheck),
         Box::new(InstanceDomainMixingCheck),
         Box::new(PanicUsageCheck),
+        Box::new(PanicRawIntCheck),
         Box::new(PartialWriteOnErrorCheck),
         Box::new(MissingContracttypeCheck),
         Box::new(UnboundedStorageCheck),
