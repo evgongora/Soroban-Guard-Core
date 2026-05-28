@@ -3,7 +3,10 @@
 pub mod address_cmp_instead_of_auth;
 pub mod address_from_str;
 pub mod admin;
+pub mod admin_eq_instead_of_auth;
 pub mod admin_no_group_auth;
+pub mod admin_no_remove;
+pub mod admin_stored_unused;
 pub mod admin_zero_address;
 pub mod admin_in_temp;
 pub mod admin_key_removal;
@@ -110,6 +113,7 @@ pub mod unvalidated_invoke_target;
 pub mod unvalidated_price;
 mod util;
 pub mod vec_get_unwrap;
+pub mod vec_map_tuple_convert;
 pub mod vec_mutate_in_loop;
 pub mod vec_push_in_loop;
 pub mod vesting_cliff;
@@ -123,7 +127,10 @@ pub mod zero_transfer_event;
 pub use address_cmp_instead_of_auth::AddressCmpInsteadOfAuthCheck;
 pub use address_from_str::AddressFromStrCheck;
 pub use admin::UnprotectedAdminCheck;
+pub use admin_eq_instead_of_auth::AdminEqInsteadOfAuthCheck;
 pub use admin_no_group_auth::AdminNoGroupAuthCheck;
+pub use admin_no_remove::AdminNoRemoveCheck;
+pub use admin_stored_unused::AdminStoredUnusedCheck;
 pub use admin_zero_address::AdminZeroAddressCheck;
 pub use admin_in_temp::AdminInTempCheck;
 pub use admin_key_removal::AdminKeyRemovalCheck;
@@ -228,6 +235,7 @@ pub use uncapped_slippage::UncappedSlippageCheck;
 pub use unlimited_allowance::UnlimitedAllowanceCheck;
 pub use unvalidated_price::UnvalidatedPriceCheck;
 pub use vec_mutate_in_loop::VecMutateInLoopCheck;
+pub use vec_map_tuple_convert::VecMapTupleConvertCheck;
 pub use vec_push_in_loop::VecPushInLoopCheck;
 pub use vesting_cliff::VestingCliffCheck;
 pub use weak_randomness::WeakRandomnessCheck;
@@ -349,6 +357,10 @@ pub fn default_checks() -> Vec<Box<dyn Check + Send + Sync>> {
         Box::new(TierKeyCollisionCheck),
         Box::new(AdminZeroAddressCheck),
         Box::new(AdminNoGroupAuthCheck),
+        Box::new(AdminNoRemoveCheck),
+        Box::new(AdminStoredUnusedCheck),
+        Box::new(AdminEqInsteadOfAuthCheck),
+        Box::new(VecMapTupleConvertCheck),
         Box::new(OwnershipPendingNotClearedCheck),
         Box::new(OwnershipNoApprovalInvalidationCheck),
     ]
