@@ -27,6 +27,7 @@ pub mod bytes_oversized;
 pub mod contracterror_attr;
 pub mod contracttype;
 pub mod crypto_no_cache;
+pub mod sha256_empty;
 pub mod current_contract_unwrap;
 pub mod debug_entrypoint;
 pub mod decimals_mismatch;
@@ -148,6 +149,7 @@ pub use bytes_oversized::BytesOversizedCheck;
 pub use contracterror_attr::ContracterrorAttrCheck;
 pub use contracttype::MissingContracttypeCheck;
 pub use crypto_no_cache::CryptoNoCacheCheck;
+pub use sha256_empty::Sha256EmptyCheck;
 pub use current_contract_unwrap::CurrentContractUnwrapCheck;
 pub use debug_entrypoint::DebugEntrypointCheck;
 pub use decimals_mismatch::DecimalsMismatchCheck;
@@ -296,6 +298,7 @@ pub fn default_checks() -> Vec<Box<dyn Check + Send + Sync>> {
         Box::new(TempGetNoHasCheck),
         Box::new(AmountMulOverflowCheck),
         Box::new(FloatArithmeticCheck),
+        Box::new(Sha256EmptyCheck),
         Box::new(WeakRandomnessCheck),
         Box::new(ReentrancyCheck),
         Box::new(TokenTransferUncheckedCheck),
