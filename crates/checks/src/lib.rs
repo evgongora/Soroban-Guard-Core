@@ -31,6 +31,7 @@ pub mod debug_entrypoint;
 pub mod decimals_mismatch;
 pub mod deploy_arg_auth;
 pub mod deploy_arg_auth;
+pub mod deploy_no_event;
 pub mod dynamic_symbol_key;
 pub mod env_in_struct;
 pub mod event_duplicate;
@@ -77,6 +78,7 @@ pub mod renounce_no_backup;
 pub mod runtime_symbol;
 pub mod secp256k1_unchecked;
 pub mod self_transfer;
+pub mod self_invoke;
 pub mod sequence_as_key;
 pub mod sequence_nonce;
 pub mod storage;
@@ -108,6 +110,7 @@ pub mod uncapped_slippage;
 pub mod unlimited_allowance;
 pub mod unvalidated_invoke_target;
 pub mod unvalidated_price;
+pub mod upgrade_no_event;
 mod util;
 pub mod vec_get_unwrap;
 pub mod vec_mutate_in_loop;
@@ -151,6 +154,7 @@ pub use debug_entrypoint::DebugEntrypointCheck;
 pub use decimals_mismatch::DecimalsMismatchCheck;
 pub use deploy_arg_auth::DeployArgAuthCheck;
 pub use deploy_arg_auth::DeployArgAuthCheck;
+pub use deploy_no_event::DeployNoEventCheck;
 pub use dynamic_symbol_key::DynamicSymbolKeyCheck;
 pub use env_in_struct::EnvInStructCheck;
 pub use event_duplicate::EventDuplicateCheck;
@@ -198,6 +202,7 @@ pub use renounce_no_backup::RenounceNoBackupCheck;
 pub use runtime_symbol::RuntimeSymbolCheck;
 pub use secp256k1_unchecked::Secp256k1UncheckedCheck;
 pub use self_transfer::SelfTransferCheck;
+pub use self_invoke::SelfInvokeCheck;
 pub use sequence_as_key::SequenceAsKeyCheck;
 pub use sequence_nonce::SequenceNonceCheck;
 pub use storage::UnsafeStoragePatternsCheck;
@@ -227,6 +232,7 @@ pub use uncapped_fee::UncappedFeeCheck;
 pub use uncapped_slippage::UncappedSlippageCheck;
 pub use unlimited_allowance::UnlimitedAllowanceCheck;
 pub use unvalidated_price::UnvalidatedPriceCheck;
+pub use upgrade_no_event::UpgradeNoEventCheck;
 pub use vec_mutate_in_loop::VecMutateInLoopCheck;
 pub use vec_push_in_loop::VecPushInLoopCheck;
 pub use vesting_cliff::VestingCliffCheck;
@@ -351,5 +357,8 @@ pub fn default_checks() -> Vec<Box<dyn Check + Send + Sync>> {
         Box::new(AdminNoGroupAuthCheck),
         Box::new(OwnershipPendingNotClearedCheck),
         Box::new(OwnershipNoApprovalInvalidationCheck),
+        Box::new(DeployNoEventCheck),
+        Box::new(SelfInvokeCheck),
+        Box::new(UpgradeNoEventCheck),
     ]
 }
