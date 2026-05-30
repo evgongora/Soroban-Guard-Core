@@ -117,21 +117,21 @@ Instance storage in Soroban has a TTL (time-to-live) and will expire if not peri
 
 ---
 
-## `storage-has-get-race` (Medium)
+## `storage-key-collision` (Medium)
 
 **Status:** Phase 1
 
 **What it detects**
 
-Potential race conditions between storage `has()` and `get()` calls on the same key, where the key could be removed between the two calls.
+Storage keys with similar names that could lead to accidental overwrites, such as "owner", "owner_addr", and "owner_address" in the same contract.
 
 **Why it matters**
 
-Race conditions can lead to unexpected behavior and security vulnerabilities. Using `get()` directly instead of `has()` followed by `get()` eliminates this race condition.
+Similar key names can cause developers to accidentally use the wrong key when reading or writing storage, leading to data corruption or security vulnerabilities. Distinct key names help prevent these mistakes.
 
 **Limitations**
 
-- Only detects direct patterns in the same function
-- May miss cases where the key is stored in a variable
+- Only detects string literal keys, not symbol-based keys
+- May flag some legitimate cases where similar keys are intentionally used
 
-**Fixture:** `test-contracts/storage-has-get-race-vulnerable/`, `test-contracts/storage-has-get-race-safe/`
+**Fixture:** `test-contracts/storage-key-collision-vulnerable/`, `test-contracts/storage-key-collision-safe/`
