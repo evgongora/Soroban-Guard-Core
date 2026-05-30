@@ -80,8 +80,8 @@ struct DeploySaltPredictableVisitor<'a> {
 impl<'ast> Visit<'ast> for DeploySaltPredictableVisitor<'_> {
     fn visit_stmt(&mut self, i: &'ast Stmt) {
         if let Stmt::Local(local) = i {
-            if let Some(init) = &local.init {
-                if expr_contains_ledger_rand(&init.expr, &self.ledger_vars) {
+            if let Some(init_expr) = &local.init {
+                if expr_contains_ledger_rand(&init_expr.expr, &self.ledger_vars) {
                     if let Pat::Ident(pi) = &local.pat {
                         self.ledger_vars.push(pi.ident.to_string());
                     }
