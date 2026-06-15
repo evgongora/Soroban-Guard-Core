@@ -6,7 +6,6 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
-use syn::spanned::Spanned;
 use syn::{File, FnArg, Pat, Type};
 
 const CHECK_NAME: &str = "bytes-not-bytesn";

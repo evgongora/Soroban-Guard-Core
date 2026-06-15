@@ -22,7 +22,10 @@ impl Check for SigVerifyInvertedCheck {
         let mut out = Vec::new();
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
-            let mut visitor = Visitor { fn_name, out: &mut out };
+            let mut visitor = Visitor {
+                fn_name,
+                out: &mut out,
+            };
             visitor.visit_block(&method.block);
         }
         out
@@ -58,8 +61,17 @@ impl<'a> Visit<'_> for Visitor<'a> {
 /// `crypto().ed25519_verify(...) == false`.
 fn is_inverted_verify(expr: &Expr) -> bool {
     match expr {
-        Expr::Unary(ExprUnary { op: UnOp::Not(_), expr, .. }) => is_ed25519_verify_call(expr),
-        Expr::Binary(ExprBinary { left, op: syn::BinOp::Eq(_), right, .. }) => {
+        Expr::Unary(ExprUnary {
+            op: UnOp::Not(_),
+            expr,
+            ..
+        }) => is_ed25519_verify_call(expr),
+        Expr::Binary(ExprBinary {
+            left,
+            op: syn::BinOp::Eq(_),
+            right,
+            ..
+        }) => {
             (is_ed25519_verify_call(left) && is_bool_false(right))
                 || (is_ed25519_verify_call(right) && is_bool_false(left))
         }
@@ -68,7 +80,9 @@ fn is_inverted_verify(expr: &Expr) -> bool {
 }
 
 fn is_ed25519_verify_call(expr: &Expr) -> bool {
-    let Expr::MethodCall(m) = expr else { return false };
+    let Expr::MethodCall(m) = expr else {
+        return false;
+    };
     if m.method != "ed25519_verify" {
         return false;
     }

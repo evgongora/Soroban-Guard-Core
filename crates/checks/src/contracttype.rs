@@ -5,11 +5,10 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
+use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{
-    Attribute, Expr, ExprMethodCall, File, Item, ItemEnum, ItemStruct, Pat, ReturnType, Stmt,
-};
+use syn::{Attribute, Expr, ExprMethodCall, File, Item, ItemEnum, ItemStruct, Local, Pat};
 
 const CHECK_NAME: &str = "missing-contracttype";
 
@@ -117,20 +116,69 @@ impl HasAttrs for ItemEnum {
 #[derive(Default)]
 struct StorageTypeScanner {
     types: Vec<String>,
+    var_types: HashMap<String, String>,
 }
 
 impl<'ast> Visit<'ast> for StorageTypeScanner {
+    fn visit_local(&mut self, i: &'ast Local) {
+        // Track `let d = MyData { ... }` → d → "MyData"
+        if let Some(init) = &i.init {
+            if let Expr::Struct(es) = &*init.expr {
+                if es.path.segments.len() == 1 {
+                    let type_name = es.path.segments[0].ident.to_string();
+                    let pat = match &i.pat {
+                        Pat::Type(pt) => &*pt.pat,
+                        p => p,
+                    };
+                    if let Pat::Ident(pi) = pat {
+                        self.var_types.insert(pi.ident.to_string(), type_name);
+                    }
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         // Check for .set(...) calls on storage objects
         if i.method == "set" && is_receiver_from_storage(&i.receiver) {
             // The second argument is typically the value being stored
             if i.args.len() >= 2 {
-                if let Some(type_name) = extract_type_name_from_expr(&i.args[1]) {
+                if let Some(type_name) = self.extract_type_name(&i.args[1]) {
                     self.types.push(type_name);
                 }
             }
         }
         visit::visit_expr_method_call(self, i);
+    }
+}
+
+impl StorageTypeScanner {
+    fn extract_type_name(&self, expr: &Expr) -> Option<String> {
+        match expr {
+            Expr::Path(p) => {
+                if p.path.segments.len() == 1 {
+                    let name = p.path.segments[0].ident.to_string();
+                    // Resolve through var_types: if `name` is a variable, look up its type
+                    if let Some(resolved) = self.var_types.get(&name) {
+                        Some(resolved.clone())
+                    } else {
+                        Some(name)
+                    }
+                } else {
+                    None
+                }
+            }
+            Expr::Struct(es) => {
+                if es.path.segments.len() == 1 {
+                    Some(es.path.segments[0].ident.to_string())
+                } else {
+                    None
+                }
+            }
+            Expr::Reference(r) => self.extract_type_name(&r.expr),
+            _ => None,
+        }
     }
 }
 
@@ -144,32 +192,6 @@ fn is_receiver_from_storage(expr: &Expr) -> bool {
         }
         Expr::Field(f) => is_receiver_from_storage(&f.base),
         _ => false,
-    }
-}
-
-/// Try to extract a type name from an expression
-fn extract_type_name_from_expr(expr: &Expr) -> Option<String> {
-    match expr {
-        Expr::Path(p) => {
-            if p.path.segments.len() == 1 {
-                Some(p.path.segments[0].ident.to_string())
-            } else {
-                None
-            }
-        }
-        Expr::Struct(es) => {
-            if let syn::Path { segments, .. } = &es.path {
-                if segments.len() == 1 {
-                    Some(segments[0].ident.to_string())
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }
-        Expr::Reference(r) => extract_type_name_from_expr(&r.expr),
-        _ => None,
     }
 }
 
@@ -196,7 +218,7 @@ impl MyContract {
         let file = parse_file(code).unwrap();
         let check = MissingContracttypeCheck;
         let findings = check.run(&file, code);
-        assert!(findings.len() >= 1);
+        assert!(!findings.is_empty());
         assert!(findings
             .iter()
             .any(|f| f.function_name.is_empty() && f.description.contains("MyData")));

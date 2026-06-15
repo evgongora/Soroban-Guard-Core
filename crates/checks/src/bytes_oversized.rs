@@ -71,7 +71,7 @@ fn is_method_from_slice_with_param(call: &ExprMethodCall, params: &[String]) -> 
     let Expr::Path(p) = &*call.receiver else {
         return false;
     };
-    if !p.path.get_ident().is_some_and(|id| id == "Bytes") {
+    if p.path.get_ident().is_none_or(|id| id != "Bytes") {
         return false;
     }
     call.args.iter().any(|a| expr_is_param(a, params))

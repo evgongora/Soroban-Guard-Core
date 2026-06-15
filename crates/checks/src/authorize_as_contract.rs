@@ -2,7 +2,6 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
-use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{Expr, ExprMethodCall, File};
 
@@ -22,8 +21,6 @@ impl Check for AuthorizeAsContractCheck {
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
             let mut scan = AuthCallScan {
-                fn_name: fn_name.clone(),
-                out: &mut out,
                 require_auth_found: false,
                 authorize_found: false,
             };
@@ -56,14 +53,12 @@ fn is_authorize_current_contract_call(m: &ExprMethodCall) -> bool {
         && matches!(&*m.receiver, Expr::Path(p) if p.path.is_ident("env"))
 }
 
-struct AuthCallScan<'a> {
-    fn_name: String,
-    out: &'a mut Vec<Finding>,
+struct AuthCallScan {
     require_auth_found: bool,
     authorize_found: bool,
 }
 
-impl<'ast> Visit<'ast> for AuthCallScan<'_> {
+impl<'ast> Visit<'ast> for AuthCallScan {
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         if is_require_auth_call(i) {
             self.require_auth_found = true;

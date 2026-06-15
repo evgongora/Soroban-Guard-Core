@@ -26,13 +26,17 @@ struct ReadScan {
 impl<'ast> Visit<'ast> for ReadScan {
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         let name = i.method.to_string();
-        if matches!(name.as_str(), "get" | "get_unchecked") && receiver_has(&i.receiver, "persistent") {
+        if matches!(name.as_str(), "get" | "get_unchecked")
+            && receiver_has(&i.receiver, "persistent")
+        {
             self.persistent_get = true;
             if self.get_line.is_none() {
                 self.get_line = Some(i.span().start().line);
             }
         }
-        if matches!(name.as_str(), "extend_ttl" | "bump_to_ttl") && receiver_has(&i.receiver, "persistent") {
+        if matches!(name.as_str(), "extend_ttl" | "bump_to_ttl")
+            && receiver_has(&i.receiver, "persistent")
+        {
             self.has_extend = true;
         }
         visit::visit_expr_method_call(self, i);

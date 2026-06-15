@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMatch, File, Pat};
+use syn::{ExprMatch, File, Pat};
 
 const CHECK_NAME: &str = "result-non-exhaustive";
 
@@ -60,8 +60,7 @@ impl<'ast> Visit<'ast> for MatchScanner<'_> {
                 line: i.match_token.span().start().line,
                 function_name: self.fn_name.clone(),
                 description: format!(
-                    "Method `{}` matches a `Result` and handles `Ok(...)` without an explicit `Err(...)` arm. "
-                    "This can panic or ignore errors when the result is `Err`.",
+                    "Method `{}` matches a `Result` and handles `Ok(...)` without an explicit `Err(...)` arm. This can panic or ignore errors when the result is `Err`.",
                     self.fn_name
                 ),
             });
@@ -76,17 +75,17 @@ fn pat_contains_variant(pat: &Pat, variant: &str) -> bool {
         Pat::TupleStruct(ts) => path_is_variant(&ts.path, variant),
         Pat::Path(p) => path_is_variant(&p.path, variant),
         Pat::Struct(s) => path_is_variant(&s.path, variant),
-        Pat::Or(o) => o.cases.iter().any(|case| pat_contains_variant(case, variant)),
+        Pat::Or(o) => o
+            .cases
+            .iter()
+            .any(|case| pat_contains_variant(case, variant)),
         Pat::Reference(r) => pat_contains_variant(&r.pat, variant),
-        Pat::Box(b) => pat_contains_variant(&b.pat, variant),
         _ => false,
     }
 }
 
 fn path_is_variant(path: &syn::Path, variant: &str) -> bool {
-    path.segments
-        .last()
-        .is_some_and(|seg| seg.ident == variant)
+    path.segments.last().is_some_and(|seg| seg.ident == variant)
 }
 
 fn pat_is_wildcard(pat: &Pat) -> bool {

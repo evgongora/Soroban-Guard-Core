@@ -30,7 +30,10 @@ impl Check for LinearWhitelistScanCheck {
             }
 
             // Second pass: find .iter().any(…) calls
-            let mut v = Visitor { fn_name, out: &mut out };
+            let mut v = Visitor {
+                fn_name,
+                out: &mut out,
+            };
             v.visit_block(&method.block);
         }
         out

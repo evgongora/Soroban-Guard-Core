@@ -36,8 +36,14 @@ fn is_authorize_as_current_contract_call(m: &ExprMethodCall) -> bool {
 }
 
 fn has_empty_array_arg(m: &ExprMethodCall) -> bool {
-    m.args.len() == 1
-        && matches!(&m.args[0], Expr::Array(ExprArray { elems, .. }) if elems.is_empty())
+    if m.args.len() != 1 {
+        return false;
+    }
+    let arg = match &m.args[0] {
+        Expr::Reference(r) => &*r.expr,
+        other => other,
+    };
+    matches!(arg, Expr::Array(ExprArray { elems, .. }) if elems.is_empty())
 }
 
 struct AuthorizeEmptyScan<'a> {

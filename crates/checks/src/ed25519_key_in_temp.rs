@@ -4,9 +4,10 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
+use std::collections::HashSet;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprField, ExprMethodCall, ExprPath, ExprReference, File};
+use syn::{Expr, ExprField, ExprMethodCall, ExprReference, File};
 
 const CHECK_NAME: &str = "ed25519-key-in-temp";
 
@@ -24,6 +25,7 @@ impl Check for Ed25519KeyInTempCheck {
             let mut visitor = Ed25519KeyInTempVisitor {
                 fn_name,
                 out: &mut out,
+                temp_vars: HashSet::new(),
             };
             visitor.visit_block(&method.block);
         }
@@ -34,25 +36,66 @@ impl Check for Ed25519KeyInTempCheck {
 struct Ed25519KeyInTempVisitor<'a> {
     fn_name: String,
     out: &'a mut Vec<Finding>,
+    temp_vars: HashSet<String>,
 }
 
 impl<'ast> Visit<'ast> for Ed25519KeyInTempVisitor<'_> {
+    fn visit_local(&mut self, i: &'ast syn::Local) {
+        if let Some(init) = &i.init {
+            if contains_temp_storage_get(&init.expr) {
+                let pat = match &i.pat {
+                    syn::Pat::Type(pt) => &*pt.pat,
+                    p => p,
+                };
+                if let syn::Pat::Ident(pi) = pat {
+                    self.temp_vars.insert(pi.ident.to_string());
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
-        if is_ed25519_verify_call(i) && has_temporary_pubkey_arg(i) {
-            let line = i.span().start().line;
-            self.out.push(Finding {
-                check_name: CHECK_NAME.to_string(),
-                severity: Severity::High,
-                file_path: String::new(),
-                line,
-                function_name: self.fn_name.clone(),
-                description: format!(
-                    "Method `{}` calls `env.crypto().ed25519_verify(...)` with a public key read from temporary storage. Temporary storage entries expire, which may cause verification to use a default key.",
-                    self.fn_name
-                ),
-            });
+        if is_ed25519_verify_call(i) {
+            let flagged = has_temporary_pubkey_arg(i) || self.pubkey_arg_is_temp_var(i);
+            if flagged {
+                let line = i.span().start().line;
+                self.out.push(Finding {
+                    check_name: CHECK_NAME.to_string(),
+                    severity: Severity::High,
+                    file_path: String::new(),
+                    line,
+                    function_name: self.fn_name.clone(),
+                    description: format!(
+                        "Method `{}` calls `env.crypto().ed25519_verify(...)` with a public key read from temporary storage. Temporary storage entries expire, which may cause verification to use a default key.",
+                        self.fn_name
+                    ),
+                });
+            }
         }
         visit::visit_expr_method_call(self, i);
+    }
+}
+
+impl Ed25519KeyInTempVisitor<'_> {
+    fn pubkey_arg_is_temp_var(&self, m: &ExprMethodCall) -> bool {
+        let Some(first) = m.args.first() else {
+            return false;
+        };
+        let ident_str = match first {
+            Expr::Reference(r) => self.expr_ident_str(&r.expr),
+            other => self.expr_ident_str(other),
+        };
+        ident_str
+            .map(|s| self.temp_vars.contains(&s))
+            .unwrap_or(false)
+    }
+
+    fn expr_ident_str(&self, expr: &Expr) -> Option<String> {
+        if let Expr::Path(p) = expr {
+            return p.path.get_ident().map(|i| i.to_string());
+        }
+        None
     }
 }
 
@@ -128,6 +171,18 @@ fn receiver_chain_is_crypto(expr: &Expr) -> bool {
 
 fn receiver_chain_is_env(expr: &Expr) -> bool {
     matches!(expr, Expr::Path(path) if path.path.is_ident("env"))
+}
+
+fn contains_temp_storage_get(expr: &Expr) -> bool {
+    match expr {
+        Expr::MethodCall(m) => {
+            if is_temporary_get(m) {
+                return true;
+            }
+            contains_temp_storage_get(&m.receiver)
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]

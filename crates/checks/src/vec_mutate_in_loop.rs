@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprForLoop, ExprMethodCall, File, Pat};
+use syn::{Expr, ExprForLoop, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "vec-mutate-in-loop";
 
@@ -37,7 +37,7 @@ struct LoopVisitor<'a> {
 
 impl<'ast> Visit<'ast> for LoopVisitor<'_> {
     fn visit_expr_for_loop(&mut self, i: &'ast ExprForLoop) {
-        let iter_var = extract_pat_ident(&i.pat);
+        let iter_var = extract_iter_collection(&i.expr);
         if let Some(var_name) = iter_var {
             let mut body_visitor = LoopBodyVisitor {
                 iter_var: var_name.clone(),
@@ -45,7 +45,7 @@ impl<'ast> Visit<'ast> for LoopVisitor<'_> {
                 mutation_line: 0,
             };
             body_visitor.visit_block(&i.body);
-            
+
             if body_visitor.found_mutation {
                 self.out.push(Finding {
                     check_name: CHECK_NAME.to_string(),
@@ -56,8 +56,7 @@ impl<'ast> Visit<'ast> for LoopVisitor<'_> {
                     description: format!(
                         "Vec `{}` is mutated inside the loop body in `{}`. \
                          This can cause infinite loops, panics, or incorrect iteration.",
-                        var_name,
-                        self.fn_name
+                        var_name, self.fn_name
                     ),
                 });
             }
@@ -86,22 +85,17 @@ impl<'a> Visit<'a> for LoopBodyVisitor {
     }
 }
 
-fn extract_pat_ident(pat: &Pat) -> Option<String> {
-    match pat {
-        Pat::Ident(p) => Some(p.ident.to_string()),
+fn extract_iter_collection(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::MethodCall(m) => extract_iter_collection(&m.receiver),
+        Expr::Path(p) => p.path.segments.first().map(|seg| seg.ident.to_string()),
         _ => None,
     }
 }
 
 fn extract_receiver_ident(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Path(p) => {
-            if let Some(seg) = p.path.segments.first() {
-                Some(seg.ident.to_string())
-            } else {
-                None
-            }
-        }
+        Expr::Path(p) => p.path.segments.first().map(|seg| seg.ident.to_string()),
         Expr::MethodCall(m) => extract_receiver_ident(&m.receiver),
         _ => None,
     }

@@ -81,24 +81,8 @@ fn is_admin_key(expr: &Expr) -> bool {
             s.contains("admin") || s.contains("owner")
         }
         Expr::Macro(m) => {
-            let s = m
-                .mac
-                .path
-                .segments
-                .iter()
-                .map(|s| s.ident.to_string())
-                .collect::<Vec<_>>()
-                .join("::")
-                .to_lowercase();
-            // symbol_short!("admin") etc.
-            s.contains("symbol") || {
-                m.mac
-                    .tokens
-                    .to_string()
-                    .to_lowercase()
-                    .contains("admin")
-                    || m.mac.tokens.to_string().to_lowercase().contains("owner")
-            }
+            m.mac.tokens.to_string().to_lowercase().contains("admin")
+                || m.mac.tokens.to_string().to_lowercase().contains("owner")
         }
         Expr::Lit(l) => {
             if let syn::Lit::Str(s) = &l.lit {

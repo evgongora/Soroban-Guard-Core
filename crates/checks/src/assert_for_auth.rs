@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMacro, File, Lit, Pat, Type};
+use syn::{Expr, File, Macro};
 
 const CHECK_NAME: &str = "assert-for-auth";
 
@@ -37,13 +37,13 @@ struct AssertVisitor<'a> {
 }
 
 impl Visit<'_> for AssertVisitor<'_> {
-    fn visit_expr_macro(&mut self, i: &ExprMacro) {
-        let macro_name = i.mac.path.segments.last().map(|s| s.ident.to_string());
+    fn visit_macro(&mut self, i: &Macro) {
+        let macro_name = i.path.segments.last().map(|s| s.ident.to_string());
 
         if let Some(name) = macro_name {
             if name == "assert" {
                 // Parse the macro tokens to check for Address comparison
-                if let Ok(condition) = i.mac.parse_body::<Expr>() {
+                if let Ok(condition) = i.parse_body::<Expr>() {
                     if contains_address_comparison(&condition) {
                         self.out.push(Finding {
                             check_name: CHECK_NAME.to_string(),
@@ -63,7 +63,7 @@ impl Visit<'_> for AssertVisitor<'_> {
             }
         }
 
-        visit::visit_expr_macro(self, i);
+        visit::visit_macro(self, i);
     }
 }
 

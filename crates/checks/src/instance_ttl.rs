@@ -37,18 +37,13 @@ fn receiver_chain_contains_instance(expr: &Expr) -> bool {
     let mut has_storage = false;
     let mut has_instance = false;
     let mut current = expr;
-    loop {
-        match current {
-            Expr::MethodCall(m) => {
-                if m.method == "storage" {
-                    has_storage = true;
-                } else if m.method == "instance" {
-                    has_instance = true;
-                }
-                current = &m.receiver;
-            }
-            _ => break,
+    while let Expr::MethodCall(m) = current {
+        if m.method == "storage" {
+            has_storage = true;
+        } else if m.method == "instance" {
+            has_instance = true;
         }
+        current = &m.receiver;
     }
     has_storage && has_instance
 }

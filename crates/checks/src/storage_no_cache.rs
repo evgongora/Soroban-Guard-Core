@@ -21,11 +21,10 @@ impl Check for StorageNoCacheCheck {
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
             let mut v = StorageVisitor {
-                fn_name: fn_name.clone(),
                 storage_calls: Vec::new(),
             };
             v.visit_block(&method.block);
-            
+
             if v.storage_calls.len() > 3 {
                 if let Some(first_line) = v.storage_calls.first() {
                     out.push(Finding {
@@ -50,10 +49,13 @@ impl Check for StorageNoCacheCheck {
 
 fn is_storage_tier_call(m: &ExprMethodCall) -> bool {
     let method_name = m.method.to_string();
-    if !matches!(method_name.as_str(), "instance" | "persistent" | "temporary") {
+    if !matches!(
+        method_name.as_str(),
+        "instance" | "persistent" | "temporary"
+    ) {
         return false;
     }
-    
+
     match &*m.receiver {
         Expr::MethodCall(recv_m) => recv_m.method == "storage",
         _ => false,
@@ -61,7 +63,6 @@ fn is_storage_tier_call(m: &ExprMethodCall) -> bool {
 }
 
 struct StorageVisitor {
-    fn_name: String,
     storage_calls: Vec<usize>,
 }
 

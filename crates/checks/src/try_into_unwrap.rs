@@ -98,9 +98,8 @@ impl C {
 
     #[test]
     fn does_not_flag_unwrap_without_try_into() {
-        let src = format!(
-            "{PRELUDE}    pub fn good(env: Env) -> Option<u32> {{ Some(42).into() }}\n}}"
-        );
+        let src =
+            format!("{PRELUDE}    pub fn good(env: Env) -> Option<u32> {{ Some(42).into() }}\n}}");
         let hits = run(&src);
         assert!(hits.is_empty());
     }

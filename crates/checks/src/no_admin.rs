@@ -29,7 +29,7 @@ impl Check for NoAdminCheck {
             method_scan.visit_block(&method.block);
             if method_scan.has_storage_set && scan.first_storage_fn_name.is_none() {
                 scan.first_storage_fn_name = Some(fn_name.clone());
-                scan.first_storage_fn_line = Some(method.sig.fn_token.span().start().line);
+                scan.first_storage_fn_line = Some(method.sig.ident.span().start().line);
             }
             scan.has_storage_set |= method_scan.has_storage_set;
             scan.has_admin_key |= method_scan.has_admin_key;
@@ -37,18 +37,16 @@ impl Check for NoAdminCheck {
 
         if scan.has_storage_set && !scan.has_admin_key && !scan.has_admin_fn {
             let line = scan.first_storage_fn_line.unwrap_or(1);
-            let function_name = scan.first_storage_fn_name.unwrap_or_else(|| "<unknown>".to_string());
+            let function_name = scan
+                .first_storage_fn_name
+                .unwrap_or_else(|| "<unknown>".to_string());
             return vec![Finding {
                 check_name: CHECK_NAME.to_string(),
                 severity: Severity::Medium,
                 file_path: String::new(),
                 line,
                 function_name,
-                description: format!(
-                    "Contract writes to storage but has no admin/owner/operator storage key "
-                    "and no ownership function named `set_admin` or `transfer_ownership`. "
-                    "This contract may be ungovernable."
-                ),
+                description: "Contract writes to storage but has no admin/owner/operator storage key and no ownership function named `set_admin` or `transfer_ownership`. This contract may be ungovernable.".to_string(),
             }];
         }
 

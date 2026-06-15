@@ -4,8 +4,8 @@
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
-use syn::visit::Visit;
-use syn::{BinOp, Expr, ExprBinary, File, Stmt};
+use syn::visit::{self, Visit};
+use syn::{BinOp, Expr, ExprBinary, File, Macro, Stmt};
 
 const CHECK_NAME: &str = "uncapped-fee";
 
@@ -88,8 +88,13 @@ fn collect_fee_vars(stmts: &[Stmt]) -> Vec<String> {
     let mut vars = Vec::new();
     for stmt in stmts {
         if let Stmt::Local(local) = stmt {
+            // Unwrap Pat::Type (e.g. `let fee_bps: i128 = …`)
+            let pat = match &local.pat {
+                syn::Pat::Type(pt) => &*pt.pat,
+                p => p,
+            };
             // Binding name heuristic: `let fee_bps = …` or `let rate = …`
-            if let syn::Pat::Ident(pi) = &local.pat {
+            if let syn::Pat::Ident(pi) = pat {
                 let var_name = pi.ident.to_string();
                 if is_fee_name(&var_name) {
                     vars.push(var_name.clone());
@@ -100,7 +105,7 @@ fn collect_fee_vars(stmts: &[Stmt]) -> Vec<String> {
             if let Some(init) = &local.init {
                 if let Some(var_name) = fee_var_from_storage_get(&init.expr) {
                     // Use the binding name if available, else the key-derived name.
-                    let bind_name = if let syn::Pat::Ident(pi) = &local.pat {
+                    let bind_name = if let syn::Pat::Ident(pi) = pat {
                         pi.ident.to_string()
                     } else {
                         var_name
@@ -181,6 +186,13 @@ struct CapGuardFinder<'a> {
 }
 
 impl<'ast> Visit<'ast> for CapGuardFinder<'_> {
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        }
+        visit::visit_macro(self, i);
+    }
+
     fn visit_expr_binary(&mut self, i: &'ast ExprBinary) {
         if matches!(i.op, BinOp::Le(_)) {
             let lhs_is_var = expr_ident_matches(&i.left, self.var);
@@ -222,15 +234,13 @@ struct MulFinder<'a> {
 
 impl<'ast> Visit<'ast> for MulFinder<'_> {
     fn visit_expr_binary(&mut self, i: &'ast ExprBinary) {
-        if self.line.is_none() {
-            if matches!(i.op, BinOp::Mul(_) | BinOp::MulAssign(_)) {
-                if expr_ident_matches(&i.left, self.fee_var)
-                    || expr_ident_matches(&i.right, self.fee_var)
-                {
-                    self.line = Some(i.span().start().line);
-                    return;
-                }
-            }
+        if self.line.is_none()
+            && matches!(i.op, BinOp::Mul(_) | BinOp::MulAssign(_))
+            && (expr_ident_matches(&i.left, self.fee_var)
+                || expr_ident_matches(&i.right, self.fee_var))
+        {
+            self.line = Some(i.span().start().line);
+            return;
         }
         syn::visit::visit_expr_binary(self, i);
     }

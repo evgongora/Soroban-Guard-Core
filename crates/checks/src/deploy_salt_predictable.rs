@@ -57,7 +57,7 @@ fn expr_contains_ledger_rand(expr: &Expr, ledger_vars: &[String]) -> bool {
         Expr::Path(path) => path
             .path
             .get_ident()
-            .map_or(false, |id| ledger_vars.contains(&id.to_string())),
+            .is_some_and(|id| ledger_vars.contains(&id.to_string())),
         Expr::Reference(r) => expr_contains_ledger_rand(&r.expr, ledger_vars),
         Expr::Paren(p) => expr_contains_ledger_rand(&p.expr, ledger_vars),
         _ => false,

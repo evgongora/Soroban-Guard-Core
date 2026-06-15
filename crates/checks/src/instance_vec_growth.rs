@@ -9,7 +9,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprMethodCall, File};
+use syn::{Block, Expr, ExprMethodCall, File, Macro};
 
 const CHECK_NAME: &str = "instance-vec-growth";
 
@@ -69,6 +69,13 @@ struct VecGrowthScan {
 }
 
 impl<'ast> Visit<'ast> for VecGrowthScan {
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        }
+        visit::visit_macro(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &ExprMethodCall) {
         if is_instance_get(i) {
             self.instance_get = true;

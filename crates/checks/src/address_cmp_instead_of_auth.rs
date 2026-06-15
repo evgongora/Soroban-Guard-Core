@@ -37,7 +37,9 @@ impl Check for AddressCmpInsteadOfAuthCheck {
     }
 }
 
-fn extract_address_params(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>) -> Vec<String> {
+fn extract_address_params(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
+) -> Vec<String> {
     let mut params = Vec::new();
     for arg in inputs {
         if let FnArg::Typed(pat_type) = arg {
@@ -73,7 +75,8 @@ fn contains_address_comparison(expr: &Expr, addr_params: &[String]) -> bool {
     match expr {
         Expr::Binary(bin) => {
             matches!(bin.op, syn::BinOp::Eq(_) | syn::BinOp::Ne(_))
-                && (is_address_param(&bin.left, addr_params) || is_address_param(&bin.right, addr_params))
+                && (is_address_param(&bin.left, addr_params)
+                    || is_address_param(&bin.right, addr_params))
         }
         _ => false,
     }
@@ -108,7 +111,9 @@ impl<'ast> Visit<'ast> for AddressCmpScan<'_> {
     }
 
     fn visit_expr_binary(&mut self, i: &'ast ExprBinary) {
-        if !self.has_require_auth && contains_address_comparison(&Expr::Binary(i.clone()), &self.addr_params) {
+        if !self.has_require_auth
+            && contains_address_comparison(&Expr::Binary(i.clone()), &self.addr_params)
+        {
             self.out.push(Finding {
                 check_name: CHECK_NAME.to_string(),
                 severity: Severity::High,

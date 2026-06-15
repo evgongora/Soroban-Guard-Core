@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File};
+use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File, Macro};
 
 const CHECK_NAME: &str = "transfer-to-self";
 
@@ -39,6 +39,13 @@ struct TransferScan<'a> {
 }
 
 impl<'a> Visit<'_> for TransferScan<'a> {
+    fn visit_macro(&mut self, i: &Macro) {
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        }
+        visit::visit_macro(self, i);
+    }
+
     fn visit_expr_binary(&mut self, i: &ExprBinary) {
         // Detect `to != env.current_contract_address()` or similar guards
         if matches!(i.op, BinOp::Ne(_)) {

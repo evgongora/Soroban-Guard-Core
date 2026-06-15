@@ -35,6 +35,7 @@ impl Check for UnboundedInputStorageCheck {
                 out: &mut out,
                 vec_map_params: &vec_map_params,
                 len_checked: HashSet::new(),
+                derived_params: HashSet::new(),
             };
             scan.visit_block(&method.block);
         }
@@ -47,16 +48,47 @@ struct UnboundedInputStorageScan<'a> {
     out: &'a mut Vec<Finding>,
     vec_map_params: &'a HashSet<Ident>,
     len_checked: HashSet<Ident>,
+    derived_params: HashSet<Ident>,
 }
 
 impl<'ast> Visit<'ast> for UnboundedInputStorageScan<'_> {
+    fn visit_local(&mut self, i: &'ast syn::Local) {
+        if let Some(init) = &i.init {
+            if let Expr::MethodCall(m) = &*init.expr {
+                if m.method == "clone" {
+                    if let Some(src_ident) = extract_ident(&m.receiver) {
+                        if self.vec_map_params.contains(src_ident)
+                            || self.derived_params.contains(src_ident)
+                        {
+                            if let syn::Pat::Ident(pi) = &i.pat {
+                                self.derived_params.insert(pi.ident.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         // Check for storage set calls
         if i.method == "set" && is_storage_receiver(&i.receiver) {
             // set(key, value) - value is second argument (index 1)
             if let Some(value_arg) = i.args.iter().nth(1) {
                 if let Some(ident) = extract_ident(value_arg) {
-                    if self.vec_map_params.contains(&ident) && !self.len_checked.contains(&ident) {
+                    let is_param =
+                        self.vec_map_params.contains(ident) || self.derived_params.contains(ident);
+                    let is_checked = self.len_checked.contains(ident)
+                        || self
+                            .derived_params
+                            .iter()
+                            .any(|d| self.len_checked.contains(d))
+                        || self
+                            .vec_map_params
+                            .iter()
+                            .any(|p| self.len_checked.contains(p));
+                    if is_param && !is_checked {
                         let line = i.span().start().line;
                         self.out.push(Finding {
                             check_name: CHECK_NAME.to_string(),
@@ -82,12 +114,12 @@ impl<'ast> Visit<'ast> for UnboundedInputStorageScan<'_> {
         // Check if this binary expression is a comparison involving a .len() call on a parameter
         if is_comparison_op(&i.op) {
             if let Some(ident) = len_call_ident(&i.left) {
-                if self.vec_map_params.contains(&ident) {
+                if self.vec_map_params.contains(ident) {
                     self.len_checked.insert(ident.clone());
                 }
             }
             if let Some(ident) = len_call_ident(&i.right) {
-                if self.vec_map_params.contains(&ident) {
+                if self.vec_map_params.contains(ident) {
                     self.len_checked.insert(ident.clone());
                 }
             }

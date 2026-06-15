@@ -5,7 +5,7 @@ use crate::{Check, Finding, Severity};
 use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprMethodCall, File, Stmt};
+use syn::{Block, Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "ttl-before-write";
 
@@ -48,7 +48,10 @@ fn receiver_chain_contains_storage(expr: &Expr) -> bool {
 fn get_storage_tier(expr: &Expr) -> Option<String> {
     match expr {
         Expr::MethodCall(m) => {
-            if matches!(m.method.to_string().as_str(), "instance" | "persistent" | "temporary") {
+            if matches!(
+                m.method.to_string().as_str(),
+                "instance" | "persistent" | "temporary"
+            ) {
                 return Some(m.method.to_string());
             }
             get_storage_tier(&m.receiver)
@@ -141,10 +144,7 @@ impl<'a> Visit<'a> for CallCollector<'a> {
         if is_set_call(i) {
             if let Some(key) = extract_key_from_call(i) {
                 if let Some(tier) = get_storage_tier(&i.receiver) {
-                    self.set_keys_by_tier
-                        .entry(tier)
-                        .or_insert_with(Vec::new)
-                        .push(key);
+                    self.set_keys_by_tier.entry(tier).or_default().push(key);
                 }
             }
         } else if is_extend_ttl_call(i) {

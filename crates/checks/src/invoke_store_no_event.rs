@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File};
+use syn::{Expr, ExprMethodCall, File, Local, Pat};
 
 const CHECK_NAME: &str = "invoke-store-no-event";
 
@@ -22,9 +22,11 @@ impl Check for InvokeStoreNoEventCheck {
             let fn_name = method.sig.ident.to_string();
             let mut scan = FuncBodyScan::default();
             scan.visit_block(&method.block);
-            
+
             if scan.invoke_stored && !scan.events_publish {
-                let line = scan.invoke_line.unwrap_or_else(|| method.sig.ident.span().start().line);
+                let line = scan
+                    .invoke_line
+                    .unwrap_or_else(|| method.sig.ident.span().start().line);
                 out.push(Finding {
                     check_name: CHECK_NAME.to_string(),
                     severity: Severity::Low,
@@ -49,20 +51,71 @@ struct FuncBodyScan {
     invoke_stored: bool,
     events_publish: bool,
     invoke_line: Option<usize>,
+    invoke_bindings: Vec<String>,
 }
 
 impl<'ast> Visit<'ast> for FuncBodyScan {
+    fn visit_local(&mut self, i: &'ast Local) {
+        if let Some(init) = &i.init {
+            if let Expr::MethodCall(m) = &*init.expr {
+                if is_invoke_contract_call(m) {
+                    let pat = match &i.pat {
+                        Pat::Type(pt) => &*pt.pat,
+                        p => p,
+                    };
+                    if let Pat::Ident(pi) = pat {
+                        let name = pi.ident.to_string();
+                        if name != "_" {
+                            self.invoke_bindings.push(name);
+                            if self.invoke_line.is_none() {
+                                self.invoke_line = Some(m.method.span().start().line);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
-        if is_invoke_contract_call(i) {
-            self.invoke_stored = true;
-            if self.invoke_line.is_none() {
-                self.invoke_line = Some(i.span().start().line);
+        if i.method == "set" && receiver_chain_contains_storage(&i.receiver) {
+            // Check if any arg uses an invoke binding.
+            for arg in &i.args {
+                if let Some(name) = expr_ident(arg) {
+                    if self.invoke_bindings.contains(&name) {
+                        self.invoke_stored = true;
+                        if self.invoke_line.is_none() {
+                            self.invoke_line = Some(i.span().start().line);
+                        }
+                    }
+                }
             }
         }
         if is_events_publish(i) {
             self.events_publish = true;
         }
         visit::visit_expr_method_call(self, i);
+    }
+}
+
+fn receiver_chain_contains_storage(expr: &Expr) -> bool {
+    match expr {
+        Expr::MethodCall(m) => {
+            if m.method == "storage" {
+                return true;
+            }
+            receiver_chain_contains_storage(&m.receiver)
+        }
+        _ => false,
+    }
+}
+
+fn expr_ident(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Path(p) => p.path.get_ident().map(|i| i.to_string()),
+        Expr::Reference(r) => expr_ident(&r.expr),
+        _ => None,
     }
 }
 

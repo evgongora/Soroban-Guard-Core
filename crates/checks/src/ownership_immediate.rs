@@ -104,12 +104,7 @@ fn expr_to_string(expr: &Expr) -> String {
             syn::Lit::Str(s) => s.value(),
             _ => String::new(),
         },
-        Expr::Macro(m) => m
-            .mac
-            .tokens
-            .to_string()
-            .trim_matches('"')
-            .to_string(),
+        Expr::Macro(m) => m.mac.tokens.to_string().trim_matches('"').to_string(),
         _ => String::new(),
     }
 }
@@ -129,10 +124,7 @@ struct AdminWriteScan {
 impl<'ast> Visit<'ast> for AdminWriteScan {
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         // Detect storage().{instance,persistent}().set(admin_key, value)
-        if i.method == "set"
-            && receiver_has(&i.receiver, "storage")
-            && i.args.len() >= 2
-        {
+        if i.method == "set" && receiver_has(&i.receiver, "storage") && i.args.len() >= 2 {
             if let Some(key_arg) = i.args.first() {
                 if is_admin_key(key_arg) {
                     self.writes_admin_key = true;

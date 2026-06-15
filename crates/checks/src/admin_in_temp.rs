@@ -2,9 +2,10 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
+use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File};
+use syn::{Expr, ExprMethodCall, File, Local, Pat};
 
 const CHECK_NAME: &str = "admin-in-temp";
 
@@ -21,6 +22,7 @@ impl Check for AdminInTempCheck {
             let mut v = AdminInTempVisitor {
                 fn_name: method.sig.ident.to_string(),
                 out: &mut out,
+                var_bindings: HashMap::new(),
             };
             v.visit_block(&method.block);
         }
@@ -59,14 +61,33 @@ fn expr_to_string(expr: &Expr) -> String {
             syn::Lit::Str(s) => s.value(),
             _ => String::new(),
         },
-        Expr::Macro(m) => m
-            .mac
-            .path
-            .segments
-            .last()
-            .map(|s| s.ident.to_string())
-            .unwrap_or_default(),
+        Expr::Macro(m) => m.mac.tokens.to_string(),
+        Expr::Call(c) => {
+            // Symbol::new(&env, "string") — last arg is the string
+            c.args.last().map(expr_to_string).unwrap_or_default()
+        }
         _ => String::new(),
+    }
+}
+
+/// Extract a string from an expression that initializes a Symbol binding.
+fn extract_symbol_string(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Call(c) => c.args.last().and_then(|a| {
+            if let Expr::Lit(l) = a {
+                if let syn::Lit::Str(s) = &l.lit {
+                    return Some(s.value());
+                }
+            }
+            None
+        }),
+        Expr::Macro(m) => {
+            let tokens = m.mac.tokens.to_string();
+            // symbol_short!("admin") → extract the inner string
+            let trimmed = tokens.trim().trim_matches('"');
+            Some(trimmed.to_string())
+        }
+        _ => None,
     }
 }
 
@@ -78,12 +99,32 @@ fn key_looks_like_admin(key: &str) -> bool {
 struct AdminInTempVisitor<'a> {
     fn_name: String,
     out: &'a mut Vec<Finding>,
+    var_bindings: HashMap<String, String>,
 }
 
 impl Visit<'_> for AdminInTempVisitor<'_> {
+    fn visit_local(&mut self, i: &Local) {
+        if let Some(init) = &i.init {
+            if let Some(s) = extract_symbol_string(&init.expr) {
+                let pat = match &i.pat {
+                    Pat::Type(pt) => &*pt.pat,
+                    p => p,
+                };
+                if let Pat::Ident(pi) = pat {
+                    self.var_bindings.insert(pi.ident.to_string(), s);
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &ExprMethodCall) {
         if i.method == "set" && receiver_chain_contains_temporary(&i.receiver) {
-            if let Some(key) = first_arg_str(i) {
+            if let Some(mut key) = first_arg_str(i) {
+                // Resolve variable bindings
+                if let Some(resolved) = self.var_bindings.get(&key) {
+                    key = resolved.clone();
+                }
                 if key_looks_like_admin(&key) {
                     self.out.push(Finding {
                         check_name: CHECK_NAME.to_string(),

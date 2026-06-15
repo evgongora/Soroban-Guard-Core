@@ -24,6 +24,7 @@ impl Check for StorageHasGetMismatchCheck {
             let mut v = StorageVisitor {
                 fn_name: fn_name.clone(),
                 out: &mut out,
+                has_calls: Vec::new(),
             };
             v.visit_block(&method.block);
         }
@@ -40,7 +41,10 @@ fn get_storage_tier(m: &ExprMethodCall) -> Option<String> {
     loop {
         match &**current {
             Expr::MethodCall(mc) => {
-                if matches!(mc.method.to_string().as_str(), "persistent" | "instance" | "temporary") {
+                if matches!(
+                    mc.method.to_string().as_str(),
+                    "persistent" | "instance" | "temporary"
+                ) {
                     return Some(mc.method.to_string());
                 }
                 current = &mc.receiver;
@@ -53,49 +57,43 @@ fn get_storage_tier(m: &ExprMethodCall) -> Option<String> {
 struct StorageVisitor<'a> {
     fn_name: String,
     out: &'a mut Vec<Finding>,
+    has_calls: Vec<(String, String, usize)>,
 }
 
-impl Visit<'_> for StorageVisitor<'_> {
-    fn visit_block(&mut self, i: &syn::Block) {
-        let mut has_calls: Vec<(String, String, usize)> = Vec::new();
-        
-        for stmt in &i.stmts {
-            if let syn::Stmt::Expr(Expr::MethodCall(m), _) = stmt {
-                if m.method == "has" {
-                    if let Some(tier) = get_storage_tier(m) {
-                        if let Some(arg) = m.args.first() {
-                            let key_str = expr_to_string(arg);
-                            has_calls.push((tier, key_str, m.span().start().line));
-                        }
-                    }
-                } else if m.method == "get" {
-                    if let Some(tier) = get_storage_tier(m) {
-                        if let Some(arg) = m.args.first() {
-                            let key_str = expr_to_string(arg);
-                            for (has_tier, has_key, has_line) in &has_calls {
-                                if has_tier == &tier && has_key != &key_str {
-                                    self.out.push(Finding {
-                                        check_name: CHECK_NAME.to_string(),
-                                        severity: Severity::Medium,
-                                        file_path: String::new(),
-                                        line: m.span().start().line,
-                                        function_name: self.fn_name.clone(),
-                                        description: format!(
-                                            "Mismatch in `{}` storage: has({}) at line {} but get({}) at line {}. \
-                                             The has() check must use the same key as the subsequent get() call \
-                                             to prevent logic errors (TOCTOU).",
-                                            tier, has_key, has_line, key_str, m.span().start().line
-                                        ),
-                                    });
-                                }
-                            }
+impl<'ast> Visit<'ast> for StorageVisitor<'_> {
+    fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
+        if i.method == "has" {
+            if let Some(tier) = get_storage_tier(i) {
+                if let Some(arg) = i.args.first() {
+                    let key_str = expr_to_string(arg);
+                    self.has_calls.push((tier, key_str, i.span().start().line));
+                }
+            }
+        } else if i.method == "get" {
+            if let Some(tier) = get_storage_tier(i) {
+                if let Some(arg) = i.args.first() {
+                    let key_str = expr_to_string(arg);
+                    for (has_tier, has_key, has_line) in &self.has_calls {
+                        if has_tier == &tier && has_key != &key_str {
+                            self.out.push(Finding {
+                                check_name: CHECK_NAME.to_string(),
+                                severity: Severity::Medium,
+                                file_path: String::new(),
+                                line: i.span().start().line,
+                                function_name: self.fn_name.clone(),
+                                description: format!(
+                                    "Mismatch in `{}` storage: has({}) at line {} but get({}) at line {}. \
+                                     The has() check must use the same key as the subsequent get() call \
+                                     to prevent logic errors (TOCTOU).",
+                                    tier, has_key, has_line, key_str, i.span().start().line
+                                ),
+                            });
                         }
                     }
                 }
             }
         }
-        
-        visit::visit_block(self, i);
+        visit::visit_expr_method_call(self, i);
     }
 }
 

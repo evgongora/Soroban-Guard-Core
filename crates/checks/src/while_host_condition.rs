@@ -76,15 +76,9 @@ fn has_host_call(expr: &Expr) -> bool {
             }
             false
         }
-        Expr::Binary(b) => {
-            has_host_call(&b.left) || has_host_call(&b.right)
-        }
-        Expr::Unary(u) => {
-            has_host_call(&u.expr)
-        }
-        Expr::Paren(p) => {
-            has_host_call(&p.expr)
-        }
+        Expr::Binary(b) => has_host_call(&b.left) || has_host_call(&b.right),
+        Expr::Unary(u) => has_host_call(&u.expr),
+        Expr::Paren(p) => has_host_call(&p.expr),
         _ => false,
     }
 }
@@ -92,15 +86,21 @@ fn has_host_call(expr: &Expr) -> bool {
 fn is_env_host_call(m: &ExprMethodCall) -> bool {
     // Check if this is a method call on env or its storage/ledger chains
     let method_name = m.method.to_string();
-    
+
     // Host methods that are expensive
     let host_methods = [
-        "get", "has", "set", "remove",
-        "get_ledger_sequence", "get_timestamp",
-        "get_network_id", "get_current_contract_address",
-        "invoke", "invoke_contract",
+        "get",
+        "has",
+        "set",
+        "remove",
+        "get_ledger_sequence",
+        "get_timestamp",
+        "get_network_id",
+        "get_current_contract_address",
+        "invoke",
+        "invoke_contract",
     ];
-    
+
     if !host_methods.contains(&method_name.as_str()) {
         return false;
     }
@@ -121,8 +121,15 @@ fn is_env_receiver(expr: &Expr) -> bool {
         Expr::MethodCall(m) => {
             // Check if it's env.storage(), env.ledger(), etc.
             let method_name = m.method.to_string();
-            if ["storage", "ledger", "crypto", "instance", "temporary", "persistent"]
-                .contains(&method_name.as_str())
+            if [
+                "storage",
+                "ledger",
+                "crypto",
+                "instance",
+                "temporary",
+                "persistent",
+            ]
+            .contains(&method_name.as_str())
             {
                 return is_env_receiver(&m.receiver);
             }

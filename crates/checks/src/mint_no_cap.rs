@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File};
+use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File, Macro};
 
 const CHECK_NAME: &str = "mint-no-cap";
 
@@ -51,11 +51,18 @@ struct MintScan {
 }
 
 impl<'ast> Visit<'ast> for MintScan {
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        }
+        visit::visit_macro(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         if receiver_chain_contains_storage(&i.receiver) {
             match i.method.to_string().as_str() {
                 "get" | "get_unchecked" => {
-                    if i.args.iter().any(|arg| expr_contains_supply_hint(arg)) {
+                    if i.args.iter().any(expr_contains_supply_hint) {
                         self.supply_get = true;
                     }
                 }
@@ -99,7 +106,13 @@ fn expr_contains_supply_hint(expr: &Expr) -> bool {
 
 fn expr_to_text(expr: &Expr) -> String {
     match expr {
-        Expr::Path(p) => p.path.segments.iter().map(|s| s.ident.to_string()).collect::<Vec<_>>().join("_"),
+        Expr::Path(p) => p
+            .path
+            .segments
+            .iter()
+            .map(|s| s.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("_"),
         Expr::Macro(m) => m.mac.tokens.to_string(),
         Expr::Lit(l) => match &l.lit {
             syn::Lit::Str(s) => s.value(),

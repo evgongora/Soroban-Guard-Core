@@ -32,8 +32,7 @@ impl Check for InvokeResultUntrustedCheck {
 }
 
 fn is_invoke_contract_call(m: &ExprMethodCall) -> bool {
-    m.method == "invoke_contract"
-        && matches!(&*m.receiver, Expr::Path(p) if p.path.is_ident("env"))
+    m.method == "invoke_contract" && matches!(&*m.receiver, Expr::Path(p) if p.path.is_ident("env"))
 }
 
 fn is_cast_method(m: &ExprMethodCall) -> bool {
@@ -78,11 +77,16 @@ impl<'ast> Visit<'ast> for InvokeResultUntrustedVisitor<'_> {
     fn visit_stmt(&mut self, i: &'ast Stmt) {
         if let Stmt::Local(local) = i {
             if let Some(init_expr) = &local.init {
-                let mut expr = &init_expr.expr;
-                if let Expr::MethodCall(cast_call) = &**expr {
-                    if is_cast_method(cast_call)
-                        && expr_contains_invoke_contract(&cast_call.receiver)
-                    {
+                let expr = &init_expr.expr;
+                if let Expr::MethodCall(m) = &**expr {
+                    // Track `let x = invoke_contract(...)` directly.
+                    if is_invoke_contract_call(m) {
+                        if let syn::Pat::Ident(pi) = &local.pat {
+                            self.invoke_bindings.push(pi.ident.to_string());
+                        }
+                    }
+                    // Track `let x = invoke_contract(...).cast_method(...)`.
+                    if is_cast_method(m) && expr_contains_invoke_contract(&m.receiver) {
                         if let syn::Pat::Ident(pi) = &local.pat {
                             self.invoke_bindings.push(pi.ident.to_string());
                         }
@@ -97,7 +101,7 @@ impl<'ast> Visit<'ast> for InvokeResultUntrustedVisitor<'_> {
         if is_cast_method(i) && !self.safe_context {
             let receiver_contains_invoke = expr_contains_invoke_contract(&i.receiver);
             let receiver_is_invoke_binding = expr_ident_name(&i.receiver)
-                .map_or(false, |name| self.invoke_bindings.contains(&name));
+                .is_some_and(|name| self.invoke_bindings.contains(&name));
             if receiver_contains_invoke || receiver_is_invoke_binding {
                 self.out.push(Finding {
                     check_name: CHECK_NAME.to_string(),

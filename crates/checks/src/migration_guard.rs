@@ -49,7 +49,7 @@ fn is_version_read(m: &ExprMethodCall) -> bool {
     }
     // Inspect the first argument for a version/schema/migration hint.
     if let Some(arg) = m.args.first() {
-        let arg_str = format!("{}", quote_expr(arg)).to_lowercase();
+        let arg_str = quote_expr(arg).to_string().to_lowercase();
         return arg_str.contains("version")
             || arg_str.contains("schema")
             || arg_str.contains("migration");

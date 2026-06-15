@@ -2,10 +2,10 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
+use proc_macro2::TokenTree;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{BinOp, Expr, ExprBinary, ExprMacro, File, FnArg, Pat, Visibility};
-use proc_macro2::TokenTree;
 
 const CHECK_NAME: &str = "uncapped-slippage";
 
@@ -41,10 +41,15 @@ impl Check for UncappedSlippageCheck {
                 }
                 None
             });
-            let Some(param) = slippage_param else { continue };
+            let Some(param) = slippage_param else {
+                continue;
+            };
 
             // Check AST for a `<= …` guard on the slippage param
-            let mut v = LeGuardVisitor { param: &param, found: false };
+            let mut v = LeGuardVisitor {
+                param: &param,
+                found: false,
+            };
             v.visit_block(&method.block);
 
             // Fallback: check source text for `param <=` (catches assert! and similar macros)

@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File, Stmt};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "nonce-increment-order";
 
@@ -83,7 +83,12 @@ fn is_nonce_storage_set(m: &ExprMethodCall) -> bool {
 fn expr_contains_nonce(expr: &Expr) -> bool {
     match expr {
         Expr::Path(p) => {
-            let s = p.path.segments.last().map(|s| s.ident.to_string()).unwrap_or_default();
+            let s = p
+                .path
+                .segments
+                .last()
+                .map(|s| s.ident.to_string())
+                .unwrap_or_default();
             s.to_lowercase().contains("nonce")
         }
         Expr::Reference(r) => expr_contains_nonce(&r.expr),
@@ -100,7 +105,10 @@ fn expr_contains_nonce(expr: &Expr) -> bool {
 
 fn is_external_call(m: &ExprMethodCall) -> bool {
     let name = m.method.to_string();
-    matches!(name.as_str(), "invoke_contract" | "transfer" | "transfer_from" | "call")
+    matches!(
+        name.as_str(),
+        "invoke_contract" | "transfer" | "transfer_from" | "call"
+    )
 }
 
 impl Visit<'_> for StmtVisitor {

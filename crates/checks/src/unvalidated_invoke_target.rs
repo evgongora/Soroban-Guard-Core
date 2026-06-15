@@ -114,10 +114,10 @@ impl<'ast> Visit<'ast> for UnvalidatedInvokeTargetVisitor<'_> {
             let right_name = expr_ident_name(&i.right);
             if left_name
                 .as_ref()
-                .map_or(false, |name| self.address_params.contains(name))
+                .is_some_and(|name| self.address_params.contains(name))
                 || right_name
                     .as_ref()
-                    .map_or(false, |name| self.address_params.contains(name))
+                    .is_some_and(|name| self.address_params.contains(name))
             {
                 self.safe_guard_found = true;
             }

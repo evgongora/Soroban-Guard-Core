@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File, Ident};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "auth-temp-storage";
 
@@ -43,14 +43,21 @@ fn is_require_auth_call(m: &ExprMethodCall) -> bool {
 
 fn extract_var_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Path(p) => {
-            if let Some(seg) = p.path.segments.last() {
-                Some(seg.ident.to_string())
-            } else {
-                None
-            }
-        }
+        Expr::Path(p) => p.path.segments.last().map(|seg| seg.ident.to_string()),
+        Expr::Reference(r) => extract_var_name(&r.expr),
         _ => None,
+    }
+}
+
+fn contains_temp_storage_get(expr: &Expr) -> bool {
+    match expr {
+        Expr::MethodCall(m) => {
+            if is_temp_storage_get(m) {
+                return true;
+            }
+            contains_temp_storage_get(&m.receiver)
+        }
+        _ => false,
     }
 }
 
@@ -93,13 +100,14 @@ impl<'ast> Visit<'ast> for AuthTempScan<'_> {
     }
 
     fn visit_local(&mut self, i: &'ast syn::Local) {
-        // Track variable assignments from temporary storage
         if let Some(init) = &i.init {
-            if let Expr::MethodCall(m) = &*init.expr {
-                if is_temp_storage_get(m) {
-                    if let syn::Pat::Ident(pat_ident) = &i.pat {
-                        self.temp_storage_vars.push(pat_ident.ident.to_string());
-                    }
+            if contains_temp_storage_get(&init.expr) {
+                let pat = match &i.pat {
+                    syn::Pat::Type(pt) => &*pt.pat,
+                    p => p,
+                };
+                if let syn::Pat::Ident(pat_ident) = pat {
+                    self.temp_storage_vars.push(pat_ident.ident.to_string());
                 }
             }
         }

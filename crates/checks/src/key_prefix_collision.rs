@@ -40,12 +40,16 @@ fn extract_string_literal(expr: &Expr) -> Option<String> {
                 None
             }
         }
+        Expr::Reference(r) => extract_string_literal(&r.expr),
         _ => None,
     }
 }
 
 fn is_storage_key_call(m: &ExprMethodCall) -> bool {
-    matches!(m.method.to_string().as_str(), "set" | "get" | "has" | "remove")
+    matches!(
+        m.method.to_string().as_str(),
+        "set" | "get" | "has" | "remove"
+    )
 }
 
 struct KeyVisitor<'a> {
@@ -60,11 +64,12 @@ impl Visit<'_> for KeyVisitor<'_> {
             if let Some(arg) = i.args.first() {
                 if let Some(key) = extract_string_literal(arg) {
                     let line = i.span().start().line;
-                    
+
                     for (existing_key, existing_line) in &self.keys {
-                        if key != *existing_key {
-                            if key.starts_with(existing_key) || existing_key.starts_with(&key) {
-                                self.out.push(Finding {
+                        if key != *existing_key
+                            && (key.starts_with(existing_key) || existing_key.starts_with(&key))
+                        {
+                            self.out.push(Finding {
                                     check_name: CHECK_NAME.to_string(),
                                     severity: Severity::Medium,
                                     file_path: String::new(),
@@ -78,10 +83,9 @@ impl Visit<'_> for KeyVisitor<'_> {
                                         self.fn_name, existing_key, existing_line, key, line
                                     ),
                                 });
-                            }
                         }
                     }
-                    
+
                     self.keys.push((key, line));
                 }
             }

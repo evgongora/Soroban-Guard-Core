@@ -58,11 +58,10 @@ impl Check for TtlEveryCallCheck {
             file_path: String::new(),
             line: 0,
             function_name: String::new(),
-            description: format!(
-                "Every entrypoint in this contract calls `instance().extend_ttl(...)`. \
+            description: "Every entrypoint in this contract calls `instance().extend_ttl(...)`. \
                  Unconditionally extending the instance TTL on every call is wasteful; \
                  consider checking the remaining TTL first or extending less frequently."
-            ),
+                .to_string(),
         }]
     }
 }

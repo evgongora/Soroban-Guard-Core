@@ -2,7 +2,6 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
-use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File};
 
@@ -22,8 +21,6 @@ impl Check for SequenceNonceCheck {
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
             let mut v = SequenceVisitor {
-                fn_name: fn_name.clone(),
-                out: &mut out,
                 sequence_used_in_comparison: false,
                 persistent_set_called: false,
             };
@@ -84,14 +81,12 @@ fn receiver_chain_contains_persistent(expr: &Expr) -> bool {
     }
 }
 
-struct SequenceVisitor<'a> {
-    fn_name: String,
-    out: &'a mut Vec<Finding>,
+struct SequenceVisitor {
     sequence_used_in_comparison: bool,
     persistent_set_called: bool,
 }
 
-impl Visit<'_> for SequenceVisitor<'_> {
+impl Visit<'_> for SequenceVisitor {
     fn visit_expr_binary(&mut self, i: &ExprBinary) {
         // Check if left or right side is sequence() call
         if is_sequence_call(&i.left) || is_sequence_call(&i.right) {

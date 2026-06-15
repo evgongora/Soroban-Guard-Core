@@ -23,11 +23,9 @@ impl Check for AdminNoRemoveCheck {
         for method in contractimpl_functions(file) {
             let name = method.sig.ident.to_string();
             let lower = name.to_lowercase();
-            if lower.contains("add_admin") || lower.contains("add_operator") {
-                if add_fn.is_none() {
-                    let line = method.sig.fn_token.span().start().line;
-                    add_fn = Some((name, line));
-                }
+            if (lower.contains("add_admin") || lower.contains("add_operator")) && add_fn.is_none() {
+                let line = method.sig.fn_token.span().start().line;
+                add_fn = Some((name, line));
             }
             if lower.contains("remove_admin")
                 || lower.contains("revoke_admin")

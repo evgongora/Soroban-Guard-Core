@@ -5,7 +5,7 @@ use crate::{Check, Finding, Severity};
 use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprMethodCall, File, Stmt};
+use syn::{Block, Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "instance-set-no-has";
 
@@ -99,8 +99,6 @@ impl<'a> Visit<'a> for InstanceVisitor<'a> {
                 });
             }
         }
-
-        visit::visit_block(self, i);
     }
 }
 

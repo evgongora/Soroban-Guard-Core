@@ -133,7 +133,11 @@ impl MyContract {
 }
 "#;
         let findings = run(code);
-        assert_eq!(findings.len(), 2, "expected 2 findings (one per deploy call)");
+        assert_eq!(
+            findings.len(),
+            2,
+            "expected 2 findings (one per deploy call)"
+        );
         assert!(findings.iter().all(|f| f.check_name == CHECK_NAME));
         assert!(findings.iter().all(|f| f.severity == Severity::Low));
     }
@@ -150,7 +154,10 @@ impl MyContract {
 }
 "#;
         let findings = run(code);
-        assert!(findings.is_empty(), "single deploy on cached deployer is fine");
+        assert!(
+            findings.is_empty(),
+            "single deploy on cached deployer is fine"
+        );
     }
 
     #[test]

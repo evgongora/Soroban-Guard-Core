@@ -75,6 +75,7 @@ fn key_looks_like_nonce(key: &str) -> bool {
         || lower.contains("seqno")
         || lower.contains("counter")
         || lower.contains("sequence")
+        || lower.contains("seq")
 }
 
 struct NonceInTempVisitor<'a> {

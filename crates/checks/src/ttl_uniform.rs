@@ -70,7 +70,10 @@ impl Check for TtlUniformCheck {
 
         // Check if every call uses the same (min, max) pair.
         let first = (scanner.calls[0].0, scanner.calls[0].1);
-        let all_same = scanner.calls.iter().all(|(min, max, _)| (*min, *max) == first);
+        let all_same = scanner
+            .calls
+            .iter()
+            .all(|(min, max, _)| (*min, *max) == first);
         if !all_same {
             return vec![];
         }

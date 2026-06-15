@@ -3,11 +3,11 @@
 //! Storage reads should be gated by `env.require_auth()` when accessing sensitive data.
 //! This check detects `get` calls on storage tiers without corresponding auth calls in the same function.
 
-use crate::util::{contractimpl_functions, is_contractimpl};
+use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File, Lit, LitStr, Pat, Stmt};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "unauthorized-storage-read";
 
@@ -23,21 +23,19 @@ impl Check for UnauthorizedStorageReadCheck {
 
     fn run(&self, file: &File, _source: &str) -> Vec<Finding> {
         let mut out = Vec::new();
-        
+
         // First, collect all functions that have require_auth calls
         let mut authed_functions = std::collections::HashSet::new();
-        
+
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
-            let mut v = AuthVisitor {
-                has_auth: false,
-            };
+            let mut v = AuthVisitor { has_auth: false };
             v.visit_block(&method.block);
             if v.has_auth {
                 authed_functions.insert(fn_name.clone());
             }
         }
-        
+
         // Then, find all functions with storage get calls
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
@@ -58,7 +56,7 @@ impl Check for UnauthorizedStorageReadCheck {
                 }
             }
         }
-        
+
         out
     }
 }
@@ -87,16 +85,23 @@ struct StorageGetVisitor {
     has_storage_get: bool,
 }
 
+fn receiver_chain_contains_storage(expr: &Expr) -> bool {
+    match expr {
+        Expr::MethodCall(m) => {
+            if m.method == "storage" {
+                return true;
+            }
+            receiver_chain_contains_storage(&m.receiver)
+        }
+        _ => false,
+    }
+}
+
 impl<'a> Visit<'a> for StorageGetVisitor {
     fn visit_expr_method_call(&mut self, i: &'a ExprMethodCall) {
-        // Check for storage get calls: get, has, etc.
-        if i.method == "get" || i.method == "has" {
-            // Check if receiver chain includes storage
-            if let Expr::MethodCall(mc) = &*i.receiver {
-                if mc.method == "storage" {
-                    self.has_storage_get = true;
-                }
-            }
+        if (i.method == "get" || i.method == "has") && receiver_chain_contains_storage(&i.receiver)
+        {
+            self.has_storage_get = true;
         }
         visit::visit_expr_method_call(self, i);
     }

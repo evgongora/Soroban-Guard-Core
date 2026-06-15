@@ -8,7 +8,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprForLoop, ExprMethodCall, File};
+use syn::{Expr, ExprForLoop, ExprMethodCall, File, Local, Pat};
 
 const CHECK_NAME: &str = "auth-loop-dos";
 
@@ -78,12 +78,37 @@ impl<'ast> Visit<'ast> for LoopBodyVisitor {
 struct AuthLoopVisitor<'a> {
     fn_name: String,
     out: &'a mut Vec<Finding>,
+    storage_bindings: Vec<String>,
 }
 
 impl<'ast> Visit<'ast> for AuthLoopVisitor<'ast> {
+    fn visit_local(&mut self, i: &'ast Local) {
+        if let Some(init) = &i.init {
+            if expr_is_storage_get(&init.expr) {
+                let pat = match &i.pat {
+                    Pat::Type(pt) => &*pt.pat,
+                    p => p,
+                };
+                if let Pat::Ident(pi) = pat {
+                    self.storage_bindings.push(pi.ident.to_string());
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_for_loop(&mut self, i: &'ast ExprForLoop) {
-        // Check if the iterable comes from storage.
-        if expr_is_storage_get(&i.expr) {
+        // Check if the iterable comes from storage (direct or via variable).
+        let is_storage = expr_is_storage_get(&i.expr) || {
+            if let Expr::Path(p) = &*i.expr {
+                p.path
+                    .get_ident()
+                    .is_some_and(|id| self.storage_bindings.contains(&id.to_string()))
+            } else {
+                false
+            }
+        };
+        if is_storage {
             let mut body_scan = LoopBodyVisitor {
                 found_require_auth: false,
                 line: 0,
@@ -125,6 +150,7 @@ impl Check for AuthLoopDosCheck {
             let mut v = AuthLoopVisitor {
                 fn_name,
                 out: &mut out,
+                storage_bindings: Vec::new(),
             };
             v.visit_block(&method.block);
         }

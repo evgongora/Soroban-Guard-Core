@@ -7,7 +7,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprMethodCall, File, FnArg, Pat, Visibility};
+use syn::{Expr, ExprMethodCall, File, FnArg, Pat, Visibility};
 
 const CHECK_NAME: &str = "admin-zero-address";
 
@@ -149,10 +149,10 @@ fn expr_to_string(expr: &Expr) -> String {
 impl<'ast> Visit<'ast> for ValidationScan {
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         // new_admin.require_auth()
-        if i.method == "require_auth" || i.method == "require_auth_for_args" {
-            if self.param_in_expr(&i.receiver) {
-                self.validated = true;
-            }
+        if (i.method == "require_auth" || i.method == "require_auth_for_args")
+            && self.param_in_expr(&i.receiver)
+        {
+            self.validated = true;
         }
         visit::visit_expr_method_call(self, i);
     }

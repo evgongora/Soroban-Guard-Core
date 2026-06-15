@@ -3,7 +3,7 @@
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprCall, ExprMacro, File, Item, ItemEnum};
+use syn::{File, ItemEnum, Macro};
 
 const CHECK_NAME: &str = "contracterror-attr";
 
@@ -61,19 +61,19 @@ impl Visit<'_> for ErrorCollector {
         visit::visit_item_enum(self, i);
     }
 
-    fn visit_expr_macro(&mut self, i: &ExprMacro) {
-        if let Some(last_seg) = i.mac.path.segments.last() {
+    fn visit_macro(&mut self, i: &Macro) {
+        if let Some(last_seg) = i.path.segments.last() {
             if last_seg.ident == "panic_with_error" {
-                if let Some(enum_name) = extract_enum_name_from_panic_with_error(&i.mac.tokens) {
+                if let Some(enum_name) = extract_enum_name_from_panic_with_error(&i.tokens) {
                     self.panic_with_error_usages.push(PanicWithErrorUsage {
                         enum_name,
                         line: i.span().start().line,
-                        function_name: String::new(), // Will be filled by function visitor
+                        function_name: String::new(),
                     });
                 }
             }
         }
-        visit::visit_expr_macro(self, i);
+        visit::visit_macro(self, i);
     }
 
     fn visit_item_fn(&mut self, i: &syn::ItemFn) {
@@ -99,17 +99,12 @@ impl Visit<'_> for ErrorCollector {
 
 fn extract_enum_name_from_panic_with_error(tokens: &proc_macro2::TokenStream) -> Option<String> {
     let mut iter = tokens.clone().into_iter();
-    let mut comma_count = 0;
-    while let Some(token) = iter.next() {
-        match token {
-            proc_macro2::TokenTree::Punct(p) if p.as_char() == ',' => {
-                comma_count += 1;
-                if comma_count == 2 {
-                    // Second argument should be the error enum path
-                    break;
-                }
+    // Skip past the first argument (up to and including the first comma)
+    for token in iter.by_ref() {
+        if let proc_macro2::TokenTree::Punct(p) = token {
+            if p.as_char() == ',' {
+                break;
             }
-            _ => {}
         }
     }
 

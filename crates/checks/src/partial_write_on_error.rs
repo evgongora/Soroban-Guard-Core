@@ -3,8 +3,8 @@
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
-use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprMethodCall, ExprTry, File, Stmt};
+use syn::visit::Visit;
+use syn::{Block, Expr, ExprTry, File, Stmt};
 
 const CHECK_NAME: &str = "partial-write-on-error";
 
@@ -61,16 +61,13 @@ impl Visit<'_> for StatementScanner {
             self.statements.push(stmt.clone());
             self.lines.push(stmt.span().start().line);
 
-            match stmt {
-                Stmt::Expr(expr, _) => {
-                    if is_persistent_write(expr) {
-                        self.persistent_writes.push(idx);
-                    }
-                    if is_error_point(expr) {
-                        self.error_points.push(idx);
-                    }
+            if let Stmt::Expr(expr, _) = stmt {
+                if is_persistent_write(expr) {
+                    self.persistent_writes.push(idx);
                 }
-                _ => {}
+                if is_error_point(expr) {
+                    self.error_points.push(idx);
+                }
             }
 
             // Also check for error points in nested expressions

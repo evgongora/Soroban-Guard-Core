@@ -3,7 +3,7 @@
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File, LitStr};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "token-shared-storage";
 
@@ -59,7 +59,10 @@ struct KeyCollector {
 impl Visit<'_> for KeyCollector {
     fn visit_expr_method_call(&mut self, i: &ExprMethodCall) {
         // Look for .set(&"key", ...) or .get(&"key") calls on storage
-        if matches!(i.method.to_string().as_str(), "set" | "get" | "has" | "remove") {
+        if matches!(
+            i.method.to_string().as_str(),
+            "set" | "get" | "has" | "remove"
+        ) {
             if let Some(first_arg) = i.args.first() {
                 if let Some(key) = extract_string_key(first_arg) {
                     let lower = key.to_lowercase();

@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{BinOp, ExprBinary, File, FnArg, Pat, PatType, Type, TypePath};
+use syn::{BinOp, Expr, ExprBinary, File, FnArg, Macro, Pat, PatType, Type, TypePath};
 
 const CHECK_NAME: &str = "self-transfer";
 
@@ -39,11 +39,10 @@ impl Check for SelfTransferCheck {
                     file_path: String::new(),
                     line,
                     function_name: name.clone(),
-                    description: format!(
-                        "`transfer` accepts `from` and `to` Address parameters but never \
+                    description: "`transfer` accepts `from` and `to` Address parameters but never \
                          asserts `from != to`. Self-transfers produce confusing accounting \
                          and event logs."
-                    ),
+                        .to_string(),
                 });
             }
         }
@@ -87,6 +86,13 @@ struct NeScan<'a> {
 }
 
 impl<'ast> Visit<'ast> for NeScan<'_> {
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        }
+        visit::visit_macro(self, i);
+    }
+
     fn visit_expr_binary(&mut self, i: &'ast ExprBinary) {
         if matches!(i.op, BinOp::Ne(_)) {
             let left = expr_ident_name(&i.left);

@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprCall, ExprMethodCall, File};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "event-topic-runtime-string";
 
@@ -96,22 +96,20 @@ struct EventTopicVisitor<'a> {
 
 impl<'a> Visit<'a> for EventTopicVisitor<'a> {
     fn visit_expr_method_call(&mut self, m: &'a ExprMethodCall) {
-        if is_events_publish(m) {
-            if !m.args.is_empty() {
-                let first_arg = &m.args[0];
-                if check_topics_for_runtime_strings(first_arg) {
-                    self.out.push(Finding {
-                        check_name: CHECK_NAME.to_string(),
-                        severity: Severity::Low,
-                        file_path: String::new(),
-                        line: m.span().start().line,
-                        function_name: self.fn_name.clone(),
-                        description: "Event topic uses `Symbol::from_str()` with a runtime string. \
+        if is_events_publish(m) && !m.args.is_empty() {
+            let first_arg = &m.args[0];
+            if check_topics_for_runtime_strings(first_arg) {
+                self.out.push(Finding {
+                    check_name: CHECK_NAME.to_string(),
+                    severity: Severity::Low,
+                    file_path: String::new(),
+                    line: m.span().start().line,
+                    function_name: self.fn_name.clone(),
+                    description: "Event topic uses `Symbol::from_str()` with a runtime string. \
                                        Use `symbol_short!()` macro for compile-time symbols to \
                                        ensure predictable event signatures for off-chain indexers."
-                            .to_string(),
-                    });
-                }
+                        .to_string(),
+                });
             }
         }
         visit::visit_expr_method_call(self, m);

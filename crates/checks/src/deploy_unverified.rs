@@ -82,7 +82,8 @@ impl<'ast> Visit<'ast> for DeployUnverifiedVisitor {
                 if let Expr::MethodCall(m) = &*init_expr.expr {
                     if is_deploy_call(m) {
                         if let Pat::Ident(pi) = &local.pat {
-                            self.deploy_vars.push((pi.ident.to_string(), m.span().start().line));
+                            self.deploy_vars
+                                .push((pi.ident.to_string(), m.span().start().line));
                         }
                     }
                 }

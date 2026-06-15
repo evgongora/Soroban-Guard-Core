@@ -8,7 +8,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMacro, File};
+use syn::{File, Macro};
 
 const CHECK_NAME: &str = "panic-usage";
 
@@ -41,8 +41,8 @@ struct PanicMacroScan<'a> {
 }
 
 impl<'ast> Visit<'ast> for PanicMacroScan<'_> {
-    fn visit_expr_macro(&mut self, i: &'ast ExprMacro) {
-        let macro_name = i.mac.path.segments.last().map(|s| s.ident.to_string());
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        let macro_name = i.path.segments.last().map(|s| s.ident.to_string());
 
         if let Some(name) = macro_name {
             if matches!(name.as_str(), "panic" | "unreachable") {
@@ -63,7 +63,7 @@ impl<'ast> Visit<'ast> for PanicMacroScan<'_> {
             }
         }
 
-        visit::visit_expr_macro(self, i);
+        visit::visit_macro(self, i);
     }
 }
 

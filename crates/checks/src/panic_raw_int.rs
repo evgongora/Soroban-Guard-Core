@@ -9,7 +9,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMacro, File, Lit};
+use syn::{Expr, File, Lit, Macro};
 
 const CHECK_NAME: &str = "panic-raw-int";
 
@@ -41,13 +41,13 @@ struct PanicRawIntScan<'a> {
 }
 
 impl<'ast> Visit<'ast> for PanicRawIntScan<'_> {
-    fn visit_expr_macro(&mut self, i: &'ast ExprMacro) {
-        let macro_name = i.mac.path.segments.last().map(|s| s.ident.to_string());
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        let macro_name = i.path.segments.last().map(|s| s.ident.to_string());
 
         if macro_name.as_deref() == Some("panic_with_error") {
             // The macro signature is: panic_with_error!(env, error)
             // Flag when the second argument is an integer literal.
-            if let Ok(args) = syn::parse2::<PanicArgs>(i.mac.tokens.clone()) {
+            if let Ok(args) = syn::parse2::<PanicArgs>(i.tokens.clone()) {
                 if let Some(second) = args.1 {
                     if is_int_literal(&second) {
                         let line = i.span().start().line;
@@ -69,7 +69,7 @@ impl<'ast> Visit<'ast> for PanicRawIntScan<'_> {
             }
         }
 
-        visit::visit_expr_macro(self, i);
+        visit::visit_macro(self, i);
     }
 }
 
@@ -77,15 +77,14 @@ impl<'ast> Visit<'ast> for PanicRawIntScan<'_> {
 fn is_int_literal(expr: &Expr) -> bool {
     match expr {
         Expr::Lit(lit) => matches!(lit.lit, Lit::Int(_)),
-        Expr::Unary(u) => {
-            matches!(u.op, syn::UnOp::Neg(_)) && is_int_literal(&u.expr)
-        }
+        Expr::Unary(u) => matches!(u.op, syn::UnOp::Neg(_)) && is_int_literal(&u.expr),
         _ => false,
     }
 }
 
 /// Minimal parser for `panic_with_error!(expr, expr)` — extracts up to two
 /// comma-separated expressions from the macro token stream.
+#[allow(dead_code)]
 struct PanicArgs(Expr, Option<Expr>);
 
 impl syn::parse::Parse for PanicArgs {

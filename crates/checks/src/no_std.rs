@@ -35,10 +35,9 @@ impl<'ast> Visit<'ast> for StdVisitor {
                     file_path: String::new(),
                     line: p.ident.span().start().line,
                     function_name: String::new(),
-                    description: format!(
-                        "`use std::` detected. Soroban contracts must be compiled with \
+                    description: "`use std::` detected. Soroban contracts must be compiled with \
                          `#![no_std]`; `std` paths are unavailable in WASM targets."
-                    ),
+                        .to_string(),
                 });
             }
         }
@@ -54,10 +53,10 @@ impl<'ast> Visit<'ast> for StdVisitor {
                 file_path: String::new(),
                 line: i.span().start().line,
                 function_name: String::new(),
-                description: format!(
+                description:
                     "`std::` path expression detected. Soroban contracts must be compiled \
                      with `#![no_std]`; `std` paths are unavailable in WASM targets."
-                ),
+                        .to_string(),
             });
         }
         visit::visit_expr_path(self, i);

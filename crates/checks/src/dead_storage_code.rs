@@ -1,10 +1,10 @@
 //! Flags dead code (functions or constants) that reference storage operations but are never called.
 
-use crate::util::{contractimpl_functions, is_contractimpl};
+use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File, Item, ItemImpl, Lit, LitStr, Pat, Stmt};
+use syn::{Expr, ExprMethodCall, File, Item};
 
 const CHECK_NAME: &str = "dead-storage-code";
 
@@ -18,19 +18,17 @@ impl Check for DeadStorageCodeCheck {
 
     fn run(&self, file: &File, _source: &str) -> Vec<Finding> {
         let mut out = Vec::new();
-        
+
         // First, collect all functions that are referenced from #[contractimpl] functions
         let mut referenced_functions = std::collections::HashSet::new();
-        
+
         for method in contractimpl_functions(file) {
-            let fn_name = method.sig.ident.to_string();
             let mut v = ReferenceVisitor {
                 referenced_functions: &mut referenced_functions,
-                current_function: fn_name.clone(),
             };
             v.visit_block(&method.block);
         }
-        
+
         // Then, find all functions and const items in the file
         for item in &file.items {
             match item {
@@ -40,7 +38,6 @@ impl Check for DeadStorageCodeCheck {
                         // Check if this function contains storage operations
                         let mut v = StorageVisitor {
                             has_storage_ops: false,
-                            function_name: func_name.clone(),
                         };
                         v.visit_item_fn(func);
                         if v.has_storage_ops {
@@ -63,7 +60,6 @@ impl Check for DeadStorageCodeCheck {
                     // Check if this const contains storage operations
                     let mut v = StorageVisitor {
                         has_storage_ops: false,
-                        function_name: const_name.clone(),
                     };
                     v.visit_item_const(const_item);
                     if v.has_storage_ops {
@@ -83,14 +79,13 @@ impl Check for DeadStorageCodeCheck {
                 _ => {}
             }
         }
-        
+
         out
     }
 }
 
 struct ReferenceVisitor<'a> {
     referenced_functions: &'a mut std::collections::HashSet<String>,
-    current_function: String,
 }
 
 impl<'a> Visit<'a> for ReferenceVisitor<'a> {
@@ -103,7 +98,7 @@ impl<'a> Visit<'a> for ReferenceVisitor<'a> {
         }
         visit::visit_expr_method_call(self, i);
     }
-    
+
     fn visit_expr_call(&mut self, i: &'a syn::ExprCall) {
         // Look for function calls like `some_function()`
         if let Expr::Path(path) = &*i.func {
@@ -115,32 +110,41 @@ impl<'a> Visit<'a> for ReferenceVisitor<'a> {
     }
 }
 
-struct StorageVisitor<'a> {
-    has_storage_ops: bool,
-    function_name: String,
+fn receiver_chain_contains_storage(expr: &Expr) -> bool {
+    match expr {
+        Expr::MethodCall(m) => {
+            if m.method == "storage" {
+                return true;
+            }
+            receiver_chain_contains_storage(&m.receiver)
+        }
+        _ => false,
+    }
 }
 
-impl<'a> Visit<'a> for StorageVisitor<'a> {
+struct StorageVisitor {
+    has_storage_ops: bool,
+}
+
+impl<'a> Visit<'a> for StorageVisitor {
     fn visit_expr_method_call(&mut self, i: &'a ExprMethodCall) {
         // Check for storage operations: set, get, has
-        if i.method == "set" || i.method == "get" || i.method == "has" {
-            // Check if receiver is storage-related
-            if let Expr::Path(path) = &*i.receiver {
-                if let Some(segment) = path.path.segments.last() {
-                    if segment.ident == "storage" || segment.ident == "env" {
-                        self.has_storage_ops = true;
-                    }
-                }
-            }
+        if matches!(i.method.to_string().as_str(), "set" | "get" | "has")
+            && receiver_chain_contains_storage(&i.receiver)
+        {
+            self.has_storage_ops = true;
         }
         visit::visit_expr_method_call(self, i);
     }
-    
+
     fn visit_expr_call(&mut self, i: &'a syn::ExprCall) {
         // Check for storage function calls
         if let Expr::Path(path) = &*i.func {
             if let Some(segment) = path.path.segments.last() {
-                if segment.ident == "storage_set" || segment.ident == "storage_get" || segment.ident == "storage_has" {
+                if segment.ident == "storage_set"
+                    || segment.ident == "storage_get"
+                    || segment.ident == "storage_has"
+                {
                     self.has_storage_ops = true;
                 }
             }

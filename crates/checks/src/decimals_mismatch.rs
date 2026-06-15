@@ -9,7 +9,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprLit, File, Lit, ReturnType, Stmt};
+use syn::{Expr, ExprLit, File, Lit, Stmt};
 
 const CHECK_NAME: &str = "decimals-mismatch";
 
@@ -79,7 +79,9 @@ impl Check for DecimalsMismatchCheck {
 /// Handles `{ 7 }`, `{ return 7; }`, and `-> u32 { 7u32 }`.
 fn extract_single_literal_return(block: &syn::Block) -> Option<u64> {
     // Tail expression: `{ 7 }`
-    if let Some(Expr::Lit(ExprLit { lit: Lit::Int(i), .. })) = block.stmts.iter().find_map(|s| {
+    if let Some(Expr::Lit(ExprLit {
+        lit: Lit::Int(i), ..
+    })) = block.stmts.iter().find_map(|s| {
         if let Stmt::Expr(e, _) = s {
             Some(e)
         } else {
@@ -91,7 +93,10 @@ fn extract_single_literal_return(block: &syn::Block) -> Option<u64> {
     // `return 7;`
     for stmt in &block.stmts {
         if let Stmt::Expr(Expr::Return(r), _) = stmt {
-            if let Some(Expr::Lit(ExprLit { lit: Lit::Int(i), .. })) = r.expr.as_deref() {
+            if let Some(Expr::Lit(ExprLit {
+                lit: Lit::Int(i), ..
+            })) = r.expr.as_deref()
+            {
                 return i.base10_parse::<u64>().ok();
             }
         }
@@ -106,7 +111,7 @@ fn implied_decimals(val: u64) -> Option<u64> {
     }
     let mut v = val;
     let mut exp = 0u64;
-    while v % 10 == 0 {
+    while v.is_multiple_of(10) {
         v /= 10;
         exp += 1;
     }

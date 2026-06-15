@@ -90,7 +90,7 @@ fn stmt_has_persistent_get(stmt: &Stmt) -> bool {
         Stmt::Local(l) => l
             .init
             .as_ref()
-            .map_or(false, |i| expr_has_persistent_get(&i.expr)),
+            .is_some_and(|i| expr_has_persistent_get(&i.expr)),
         Stmt::Expr(e, _) => expr_has_persistent_get(e),
         _ => false,
     }

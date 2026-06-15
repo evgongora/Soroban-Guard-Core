@@ -5,7 +5,7 @@ use crate::{Check, Finding, Severity};
 use std::collections::HashSet;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File, FnArg, Pat, Visibility};
+use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File, FnArg, Macro, Pat, Visibility};
 
 const CHECK_NAME: &str = "unvalidated-price";
 
@@ -80,6 +80,13 @@ struct BoundScan {
 }
 
 impl<'ast> Visit<'ast> for BoundScan {
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        }
+        syn::visit::visit_macro(self, i);
+    }
+
     fn visit_expr_binary(&mut self, i: &'ast ExprBinary) {
         match i.op {
             BinOp::Gt(_) | BinOp::Ge(_) => self.has_lower_bound = true,

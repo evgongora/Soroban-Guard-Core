@@ -35,7 +35,9 @@ impl Check for InvokeFuncFromInputCheck {
     }
 }
 
-fn parameter_names(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>) -> HashSet<String> {
+fn parameter_names(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
+) -> HashSet<String> {
     inputs
         .iter()
         .filter_map(|arg| {
@@ -54,23 +56,27 @@ fn parameter_names(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma
 
 fn expr_uses_param(expr: &Expr, params: &HashSet<String>) -> bool {
     match expr {
-        Expr::Path(p) => p.path.get_ident().map_or(false, |id| params.contains(&id.to_string())),
+        Expr::Path(p) => p
+            .path
+            .get_ident()
+            .is_some_and(|id| params.contains(&id.to_string())),
         Expr::Reference(r) => expr_uses_param(&r.expr, params),
         Expr::Paren(p) => expr_uses_param(&p.expr, params),
-        Expr::MethodCall(m) => expr_uses_param(&m.receiver, params)
-            || m.args.iter().any(|arg| expr_uses_param(arg, params)),
-        Expr::Call(c) => expr_uses_param(&c.func, params)
-            || c.args.iter().any(|arg| expr_uses_param(arg, params)),
+        Expr::MethodCall(m) => {
+            expr_uses_param(&m.receiver, params)
+                || m.args.iter().any(|arg| expr_uses_param(arg, params))
+        }
+        Expr::Call(c) => {
+            expr_uses_param(&c.func, params)
+                || c.args.iter().any(|arg| expr_uses_param(arg, params))
+        }
         Expr::Field(f) => expr_uses_param(&f.base, params),
         Expr::Macro(m) => macro_contains_param(m, params),
         Expr::Tuple(t) => t.elems.iter().any(|e| expr_uses_param(e, params)),
         Expr::Array(a) => a.elems.iter().any(|e| expr_uses_param(e, params)),
-        Expr::Binary(b) => {
-            expr_uses_param(&b.left, params) || expr_uses_param(&b.right, params)
-        }
+        Expr::Binary(b) => expr_uses_param(&b.left, params) || expr_uses_param(&b.right, params),
         Expr::Unary(u) => expr_uses_param(&u.expr, params),
         Expr::Cast(c) => expr_uses_param(&c.expr, params),
-        Expr::Reference(r) => expr_uses_param(&r.expr, params),
         Expr::Try(t) => expr_uses_param(&t.expr, params),
         Expr::Match(m) => expr_uses_param(&m.expr, params),
         _ => false,
@@ -84,13 +90,14 @@ fn macro_contains_param(mac: &ExprMacro, params: &HashSet<String>) -> bool {
 
 fn is_symbol_short_with_param(expr: &Expr, params: &HashSet<String>) -> bool {
     match expr {
-        Expr::Macro(m) => m
-            .mac
-            .path
-            .segments
-            .last()
-            .is_some_and(|s| s.ident == "symbol_short")
-            && macro_contains_param(m, params),
+        Expr::Macro(m) => {
+            m.mac
+                .path
+                .segments
+                .last()
+                .is_some_and(|s| s.ident == "symbol_short")
+                && macro_contains_param(m, params)
+        }
         Expr::Reference(r) => is_symbol_short_with_param(&r.expr, params),
         Expr::Paren(p) => is_symbol_short_with_param(&p.expr, params),
         _ => false,
@@ -104,7 +111,12 @@ fn is_symbol_from_str_with_param(expr: &Expr, params: &HashSet<String>) -> bool 
     let Expr::Path(func) = &*call.func else {
         return false;
     };
-    if func.path.segments.last().is_some_and(|s| s.ident == "from_str") {
+    if func
+        .path
+        .segments
+        .last()
+        .is_some_and(|s| s.ident == "from_str")
+    {
         if let Some(arg) = call.args.iter().nth(1) {
             return expr_uses_param(arg, params);
         }
@@ -157,8 +169,8 @@ impl<'ast> Visit<'ast> for InvokeFuncFromInputVisitor<'_> {
         if is_invoke_contract_call(i) {
             if let Some(sym_arg) = i.args.iter().nth(1) {
                 let uses_param = is_user_input_symbol(sym_arg, self.params);
-                let uses_tracked_var = expr_ident_name(sym_arg)
-                    .map_or(false, |name| self.symbol_vars.contains(&name));
+                let uses_tracked_var =
+                    expr_ident_name(sym_arg).is_some_and(|name| self.symbol_vars.contains(&name));
                 if uses_param || uses_tracked_var {
                     self.out.push(Finding {
                         check_name: CHECK_NAME.to_string(),

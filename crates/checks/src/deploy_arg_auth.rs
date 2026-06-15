@@ -34,7 +34,9 @@ impl Check for DeployArgAuthCheck {
     }
 }
 
-fn extract_param_names(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>) -> Vec<String> {
+fn extract_param_names(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
+) -> Vec<String> {
     let mut names = Vec::new();
     for arg in inputs {
         if let FnArg::Typed(pat_type) = arg {
@@ -47,7 +49,8 @@ fn extract_param_names(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::C
 }
 
 fn is_require_auth_for_args_call(m: &ExprMethodCall) -> bool {
-    m.method == "require_auth_for_args" && matches!(&*m.receiver, Expr::Path(p) if p.path.is_ident("env"))
+    m.method == "require_auth_for_args"
+        && matches!(&*m.receiver, Expr::Path(p) if p.path.is_ident("env"))
 }
 
 fn is_deployer_deploy_call(m: &ExprMethodCall) -> bool {
@@ -84,7 +87,11 @@ impl<'ast> Visit<'ast> for DeployArgScan<'_> {
         if is_deployer_deploy_call(i) && !self.require_auth_for_args_found {
             // Check if any deploy argument is a function parameter
             if i.args.len() >= 2 {
-                let has_param_arg = i.args.iter().take(2).any(|arg| arg_is_param(arg, &self.param_names));
+                let has_param_arg = i
+                    .args
+                    .iter()
+                    .take(2)
+                    .any(|arg| arg_is_param(arg, &self.param_names));
                 if has_param_arg {
                     self.out.push(Finding {
                         check_name: CHECK_NAME.to_string(),

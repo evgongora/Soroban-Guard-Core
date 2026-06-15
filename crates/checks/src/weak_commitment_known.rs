@@ -6,9 +6,10 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
+use quote::ToTokens;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File, FnArg, Pat, Type};
+use syn::{Expr, ExprMethodCall, File, FnArg, Local, Pat, Type};
 
 const CHECK_NAME: &str = "weak-commitment-known";
 
@@ -45,6 +46,7 @@ impl Check for WeakCommitmentKnownCheck {
             let mut scan = Sha256Scan {
                 fn_name,
                 addr_params,
+                storage_vars: Vec::new(),
                 out: &mut out,
             };
             scan.visit_block(&method.block);
@@ -65,18 +67,45 @@ fn type_is_address(ty: &Type) -> bool {
 struct Sha256Scan<'a> {
     fn_name: String,
     addr_params: Vec<String>,
+    storage_vars: Vec<String>,
     out: &'a mut Vec<Finding>,
 }
 
 impl<'ast> Visit<'ast> for Sha256Scan<'_> {
+    fn visit_local(&mut self, i: &'ast Local) {
+        if let Some(init) = &i.init {
+            if let Expr::MethodCall(m) = &*init.expr {
+                if is_storage_get(m) {
+                    let pat = match &i.pat {
+                        Pat::Type(pt) => &*pt.pat,
+                        p => p,
+                    };
+                    if let Pat::Ident(pi) = pat {
+                        self.storage_vars.push(pi.ident.to_string());
+                    }
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         if is_sha256_call(i) {
-            let arg_src = format!("{:?}", i.args);
+            let arg_src = i
+                .args
+                .iter()
+                .map(|e| e.to_token_stream().to_string())
+                .collect::<Vec<_>>()
+                .join(" ");
             let has_addr = self
                 .addr_params
                 .iter()
                 .any(|p| arg_src.contains(p.as_str()));
-            let has_storage_read = arg_src.contains("storage") && arg_src.contains("get");
+            let has_storage_read = (arg_src.contains("storage") && arg_src.contains("get"))
+                || self
+                    .storage_vars
+                    .iter()
+                    .any(|v| arg_src.contains(v.as_str()));
 
             if has_addr && has_storage_read {
                 let line = i.span().start().line;
@@ -97,6 +126,38 @@ impl<'ast> Visit<'ast> for Sha256Scan<'_> {
         }
         visit::visit_expr_method_call(self, i);
     }
+}
+
+fn is_storage_get(m: &ExprMethodCall) -> bool {
+    if !matches!(
+        m.method.to_string().as_str(),
+        "get" | "get_unchecked" | "unwrap" | "unwrap_or" | "unwrap_or_default"
+    ) {
+        return false;
+    }
+    // Check receiver chain for storage.get or unwrap wrapping storage.get
+    fn contains_storage_get(expr: &Expr) -> bool {
+        match expr {
+            Expr::MethodCall(m) => {
+                if m.method == "get" || m.method == "get_unchecked" {
+                    return receiver_chain_has_storage(&m.receiver);
+                }
+                contains_storage_get(&m.receiver)
+            }
+            _ => false,
+        }
+    }
+    fn receiver_chain_has_storage(expr: &Expr) -> bool {
+        match expr {
+            Expr::MethodCall(m) => m.method == "storage" || receiver_chain_has_storage(&m.receiver),
+            _ => false,
+        }
+    }
+    if (m.method == "get" || m.method == "get_unchecked") && receiver_chain_has_storage(&m.receiver)
+    {
+        return true;
+    }
+    contains_storage_get(&m.receiver)
 }
 
 fn is_sha256_call(m: &ExprMethodCall) -> bool {

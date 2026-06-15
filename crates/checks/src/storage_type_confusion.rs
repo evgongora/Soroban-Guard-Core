@@ -119,17 +119,15 @@ struct SetCollector {
 
 impl<'ast> Visit<'ast> for SetCollector {
     fn visit_expr_method_call(&mut self, i: &ExprMethodCall) {
-        if i.method == "set" && receiver_chain_contains_storage(&i.receiver) {
-            if i.args.len() >= 2 {
-                if let Some(key) = extract_key_literal(&i.args[0]) {
-                    let hint = value_type_hint(&i.args[1]);
-                    self.entries.push(SetEntry {
-                        key,
-                        type_hint: hint,
-                        fn_name: self.fn_name.clone(),
-                        line: i.span().start().line,
-                    });
-                }
+        if i.method == "set" && receiver_chain_contains_storage(&i.receiver) && i.args.len() >= 2 {
+            if let Some(key) = extract_key_literal(&i.args[0]) {
+                let hint = value_type_hint(&i.args[1]);
+                self.entries.push(SetEntry {
+                    key,
+                    type_hint: hint,
+                    fn_name: self.fn_name.clone(),
+                    line: i.span().start().line,
+                });
             }
         }
         visit::visit_expr_method_call(self, i);

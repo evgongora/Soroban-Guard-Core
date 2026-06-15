@@ -3,16 +3,12 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
+use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File};
+use syn::{Expr, ExprMethodCall, File, Local, Pat};
 
 const CHECK_NAME: &str = "admin-key-removal";
-
-fn is_admin_key(expr: &Expr) -> bool {
-    let text = quote_expr(expr).to_lowercase();
-    text.contains("admin") || text.contains("owner") || text.contains("operator")
-}
 
 /// Render an expression to a string for heuristic key-name matching.
 fn quote_expr(expr: &Expr) -> String {
@@ -30,6 +26,32 @@ fn quote_expr(expr: &Expr) -> String {
             _ => String::new(),
         },
         _ => String::new(),
+    }
+}
+
+fn extract_symbol_string(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Macro(m) => {
+            let tokens = m.mac.tokens.to_string();
+            let trimmed = tokens.trim().trim_matches('"');
+            Some(trimmed.to_string())
+        }
+        Expr::Call(c) => {
+            if let Some(Expr::Lit(l)) = c.args.last() {
+                if let syn::Lit::Str(s) = &l.lit {
+                    return Some(s.value());
+                }
+            }
+            None
+        }
+        Expr::Lit(l) => {
+            if let syn::Lit::Str(s) = &l.lit {
+                Some(s.value())
+            } else {
+                None
+            }
+        }
+        _ => None,
     }
 }
 
@@ -112,21 +134,41 @@ struct RemovalScan {
     /// key_text for each persistent().set() found after a removal
     sets: Vec<String>,
     seen_removal: bool,
+    /// local variable → resolved symbol string (e.g. `key` → `"admin"`)
+    var_bindings: HashMap<String, String>,
 }
 
 impl<'ast> Visit<'ast> for RemovalScan {
+    fn visit_local(&mut self, i: &'ast Local) {
+        if let Some(init) = &i.init {
+            if let Some(s) = extract_symbol_string(&init.expr) {
+                let pat = match &i.pat {
+                    Pat::Type(pt) => &*pt.pat,
+                    p => p,
+                };
+                if let Pat::Ident(pi) = pat {
+                    self.var_bindings.insert(pi.ident.to_string(), s);
+                }
+            }
+        }
+        visit::visit_local(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         if is_persistent_remove(i) {
             if let Some(key_arg) = i.args.first() {
-                if is_admin_key(key_arg) {
-                    self.removals
-                        .push((i.span().start().line, quote_expr(key_arg)));
+                let raw = quote_expr(key_arg);
+                let resolved = self.var_bindings.get(&raw).cloned().unwrap_or(raw);
+                if is_admin_name(&resolved) {
+                    self.removals.push((i.span().start().line, resolved));
                     self.seen_removal = true;
                 }
             }
         } else if self.seen_removal && is_persistent_set(i) {
             if let Some(key_arg) = i.args.first() {
-                self.sets.push(quote_expr(key_arg));
+                let raw = quote_expr(key_arg);
+                let resolved = self.var_bindings.get(&raw).cloned().unwrap_or(raw);
+                self.sets.push(resolved);
             }
         }
         visit::visit_expr_method_call(self, i);

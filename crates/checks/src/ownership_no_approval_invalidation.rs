@@ -126,10 +126,8 @@ impl<'ast> Visit<'ast> for ApprovalScan {
                             self.clears_approvals = true;
                         }
                     }
-                    "remove" => {
-                        if is_approval_key(&key_text) {
-                            self.clears_approvals = true;
-                        }
+                    "remove" if is_approval_key(&key_text) => {
+                        self.clears_approvals = true;
                     }
                     _ => {}
                 }

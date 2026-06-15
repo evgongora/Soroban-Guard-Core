@@ -2,10 +2,10 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
+use std::collections::HashSet;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{Expr, ExprForLoop, ExprWhile, File, FnArg, Pat};
-use std::collections::HashSet;
 
 const CHECK_NAME: &str = "loop-bound-no-cap";
 
@@ -22,7 +22,7 @@ impl Check for LoopBoundNoCapCheck {
         let mut out = Vec::new();
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
-            
+
             // Collect function parameter names
             let mut params = HashSet::new();
             for arg in &method.sig.inputs {
@@ -118,9 +118,7 @@ fn is_param_in_expr(expr: &Expr, params: &HashSet<String>) -> bool {
                 false
             }
         }
-        Expr::Binary(b) => {
-            is_param_in_expr(&b.left, params) || is_param_in_expr(&b.right, params)
-        }
+        Expr::Binary(b) => is_param_in_expr(&b.left, params) || is_param_in_expr(&b.right, params),
         _ => false,
     }
 }

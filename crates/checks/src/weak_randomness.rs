@@ -31,16 +31,19 @@ impl Check for WeakRandomnessCheck {
 
 /// Returns true if `expr` is `*.ledger().timestamp()` or `*.ledger().sequence()`.
 fn is_ledger_rand(expr: &Expr) -> bool {
-    let Expr::MethodCall(outer) = expr else {
-        return false;
-    };
-    if !matches!(outer.method.to_string().as_str(), "timestamp" | "sequence") {
-        return false;
+    match expr {
+        Expr::Reference(r) => is_ledger_rand(&r.expr),
+        Expr::MethodCall(outer) => {
+            if !matches!(outer.method.to_string().as_str(), "timestamp" | "sequence") {
+                return false;
+            }
+            let Expr::MethodCall(inner) = outer.receiver.as_ref() else {
+                return false;
+            };
+            inner.method == "ledger"
+        }
+        _ => false,
     }
-    let Expr::MethodCall(inner) = outer.receiver.as_ref() else {
-        return false;
-    };
-    inner.method == "ledger"
 }
 
 fn is_arithmetic_op(op: &BinOp) -> bool {

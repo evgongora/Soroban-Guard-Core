@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, ExprLit, File, Lit, LitStr, Pat, Stmt};
+use syn::{Expr, ExprMethodCall, File, Lit};
 
 const CHECK_NAME: &str = "invoke-nonexistent-func";
 
@@ -18,7 +18,7 @@ impl Check for InvokeNonexistentFuncCheck {
 
     fn run(&self, file: &File, _source: &str) -> Vec<Finding> {
         let mut out = Vec::new();
-        
+
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
             let mut v = InvokeVisitor {
@@ -27,7 +27,7 @@ impl Check for InvokeNonexistentFuncCheck {
             };
             v.visit_block(&method.block);
         }
-        
+
         out
     }
 }
@@ -64,28 +64,44 @@ impl<'a> Visit<'a> for InvokeVisitor<'a> {
         if is_invoke_contract_call(i) {
             // Look for the function name argument - it's usually the second argument
             if i.args.len() >= 2 {
-                if let Expr::Lit(lit) = &i.args[1] {
-                    if let Lit::Str(lit_str) = &lit.lit {
-                        let func_name = lit_str.value();
-                        // Check if this is a known standard function
-                        if !KNOWN_STANDARD_FUNCTIONS.contains(&func_name.as_str()) {
-                            self.out.push(Finding {
-                                check_name: CHECK_NAME.to_string(),
-                                severity: Severity::Low,
-                                file_path: String::new(),
-                                line: i.span().start().line,
-                                function_name: self.fn_name.clone(),
-                                description: format!(
-                                    "`invoke_contract` called with function name `{}` which is not a known standard function. This may be a typo or invalid function name.",
-                                    func_name
-                                ),
-                            });
-                        }
+                if let Some(func_name) = extract_func_name_arg(&i.args[1]) {
+                    // Check if this is a known standard function
+                    if !KNOWN_STANDARD_FUNCTIONS.contains(&func_name.as_str()) {
+                        self.out.push(Finding {
+                            check_name: CHECK_NAME.to_string(),
+                            severity: Severity::Low,
+                            file_path: String::new(),
+                            line: i.span().start().line,
+                            function_name: self.fn_name.clone(),
+                            description: format!(
+                                "`invoke_contract` called with function name `{}` which is not a known standard function. This may be a typo or invalid function name.",
+                                func_name
+                            ),
+                        });
                     }
                 }
             }
         }
         visit::visit_expr_method_call(self, i);
+    }
+}
+
+/// Extract a string from a function name argument: literal "foo", &"foo", or Symbol::new(&env, "foo").
+fn extract_func_name_arg(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Lit(lit) => {
+            if let Lit::Str(s) = &lit.lit {
+                Some(s.value())
+            } else {
+                None
+            }
+        }
+        Expr::Reference(r) => extract_func_name_arg(&r.expr),
+        Expr::Call(c) => {
+            // Symbol::new(&env, "func_name") — last arg is the string literal
+            c.args.last().and_then(extract_func_name_arg)
+        }
+        _ => None,
     }
 }
 

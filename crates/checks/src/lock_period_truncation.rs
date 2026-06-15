@@ -21,7 +21,10 @@ impl Check for LockPeriodTruncationCheck {
         let mut out = Vec::new();
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
-            let mut v = Visitor { fn_name, out: &mut out };
+            let mut v = Visitor {
+                fn_name,
+                out: &mut out,
+            };
             v.visit_block(&method.block);
         }
         out
@@ -42,8 +45,7 @@ fn contains_timestamp(expr: &Expr) -> bool {
 }
 
 fn is_timestamp_add(e: &ExprBinary) -> bool {
-    matches!(e.op, BinOp::Add(_))
-        && (contains_timestamp(&e.left) || contains_timestamp(&e.right))
+    matches!(e.op, BinOp::Add(_)) && (contains_timestamp(&e.left) || contains_timestamp(&e.right))
 }
 
 fn type_is_u32(ty: &Type) -> bool {

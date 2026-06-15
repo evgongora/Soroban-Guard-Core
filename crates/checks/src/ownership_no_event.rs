@@ -2,9 +2,8 @@
 
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
-use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprMethodCall, File};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "ownership-no-event";
 
@@ -22,7 +21,7 @@ impl Check for OwnershipNoEventCheck {
         let mut out = Vec::new();
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
-            
+
             // Check if this is an ownership-related function
             if !matches!(
                 fn_name.as_str(),

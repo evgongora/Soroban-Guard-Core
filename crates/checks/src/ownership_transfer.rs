@@ -55,13 +55,7 @@ fn extract_key_str(arg: &Expr) -> String {
             syn::Lit::Str(s) => s.value(),
             _ => String::new(),
         },
-        Expr::Macro(m) => m
-            .mac
-            .path
-            .segments
-            .last()
-            .map(|s| s.ident.to_string())
-            .unwrap_or_default(),
+        Expr::Macro(m) => m.mac.tokens.to_string(),
         _ => String::new(),
     }
 }

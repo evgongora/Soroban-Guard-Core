@@ -1,10 +1,9 @@
 //! Flags `pub fn` methods in `#[contractimpl]` blocks that are not intended as entrypoints.
 
-use crate::util::{contractimpl_functions, is_contractimpl};
+use crate::util::is_contractimpl;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
-use syn::visit::{self, Visit};
-use syn::{File, ImplItem, Item, ItemImpl, ItemFn};
+use syn::{File, ImplItem, Item};
 
 const CHECK_NAME: &str = "unintended-public-method";
 
@@ -18,7 +17,7 @@ impl Check for UnintendedPublicMethodCheck {
 
     fn run(&self, file: &File, _source: &str) -> Vec<Finding> {
         let mut out = Vec::new();
-        
+
         // Find all #[contractimpl] impl blocks
         for item in &file.items {
             if let Item::Impl(item_impl) = item {
@@ -27,14 +26,15 @@ impl Check for UnintendedPublicMethodCheck {
                     for impl_item in &item_impl.items {
                         if let ImplItem::Fn(func) = impl_item {
                             // Check if it's public and has a suspicious name
-                            if func.vis.is_pub() {
+                            if matches!(func.vis, syn::Visibility::Public(_)) {
                                 let func_name = func.sig.ident.to_string();
                                 // Check for names that suggest internal/helper functions
-                                if func_name.starts_with('_') || 
-                                   func_name.contains("internal") || 
-                                   func_name.contains("helper") || 
-                                   func_name.contains("_helper") || 
-                                   func_name.contains("_internal") {
+                                if func_name.starts_with('_')
+                                    || func_name.contains("internal")
+                                    || func_name.contains("helper")
+                                    || func_name.contains("_helper")
+                                    || func_name.contains("_internal")
+                                {
                                     out.push(Finding {
                                         check_name: CHECK_NAME.to_string(),
                                         severity: Severity::Low,
@@ -53,7 +53,7 @@ impl Check for UnintendedPublicMethodCheck {
                 }
             }
         }
-        
+
         out
     }
 }

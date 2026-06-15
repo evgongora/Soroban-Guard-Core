@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File};
+use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File, Macro};
 
 const CHECK_NAME: &str = "vesting-cliff";
 
@@ -63,6 +63,13 @@ struct VestingScan {
 }
 
 impl<'ast> Visit<'ast> for VestingScan {
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        }
+        visit::visit_macro(self, i);
+    }
+
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
         // Detect storage.get() calls with keys heuristically matching start/cliff
         if i.method == "get" || i.method == "get_unchecked" || i.method == "unwrap_or" {
@@ -129,7 +136,11 @@ fn expr_to_string(expr: &Expr) -> String {
             format!("{}.{}()", expr_to_string(&m.receiver), m.method)
         }
         Expr::Binary(b) => format!("{} {}", expr_to_string(&b.left), expr_to_string(&b.right)),
-        Expr::Lit(_) => String::from("literal"),
+        Expr::Reference(r) => expr_to_string(&r.expr),
+        Expr::Lit(l) => match &l.lit {
+            syn::Lit::Str(s) => s.value(),
+            _ => String::from("literal"),
+        },
         _ => String::new(),
     }
 }

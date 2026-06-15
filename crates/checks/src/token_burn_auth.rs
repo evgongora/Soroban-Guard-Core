@@ -73,12 +73,10 @@ impl<'a> AuthScanner<'a> {
 
 impl<'a> Visit<'a> for AuthScanner<'a> {
     fn visit_expr_method_call(&mut self, i: &'a ExprMethodCall) {
-        // Check for require_auth calls
+        // Check for require_auth calls (from.require_auth() - no args, receiver is the address)
         if i.method == "require_auth" {
-            if let Some(receiver) = i.args.first() {
-                if let Some(param_name) = extract_param_name(receiver) {
-                    self.auth_calls.push(param_name);
-                }
+            if let Some(param_name) = extract_param_name(&i.receiver) {
+                self.auth_calls.push(param_name);
             }
         }
 
@@ -114,29 +112,16 @@ impl<'a> Visit<'a> for AuthScanner<'a> {
 
 fn is_token_client_call(expr: &Expr) -> bool {
     match expr {
-        Expr::MethodCall(m) => {
-            if m.method == "client" {
-                // Check if receiver is a token-related expression
-                // This is a simple heuristic - in practice it could be more sophisticated
-                true
-            } else {
-                false
-            }
-        }
-        Expr::Field(_) => true, // token.client
+        Expr::MethodCall(m) => m.method == "client" || is_token_client_call(&m.receiver),
+        Expr::Field(_) => true,
+        Expr::Path(_) => true,
         _ => false,
     }
 }
 
 fn extract_param_name(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Path(p) => {
-            if let Some(ident) = p.path.get_ident() {
-                Some(ident.to_string())
-            } else {
-                None
-            }
-        }
+        Expr::Path(p) => p.path.get_ident().map(|ident| ident.to_string()),
         Expr::Reference(r) => extract_param_name(&r.expr),
         _ => None,
     }

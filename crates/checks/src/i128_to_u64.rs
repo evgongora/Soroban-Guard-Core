@@ -23,6 +23,7 @@ fn expr_type_is_wide_int(expr: &Expr) -> bool {
         Expr::Cast(inner) => {
             matches!(&*inner.ty, Type::Path(p) if p.path.is_ident("i128") || p.path.is_ident("u128"))
         }
+        Expr::Paren(p) => expr_type_is_wide_int(&p.expr),
         // Also flag any `as u64` where the source is a path (variable) — conservative
         // but catches the common `amount as u64` pattern in token contracts.
         Expr::Path(_) => true,

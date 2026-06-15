@@ -6,7 +6,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprArray, ExprMethodCall, ExprPath, ExprReference, File, Lit};
+use syn::{Expr, ExprArray, ExprCall, ExprMethodCall, ExprPath, ExprReference, File, Lit};
 
 const CHECK_NAME: &str = "sha256-empty";
 
@@ -47,8 +47,7 @@ impl<'ast> Visit<'ast> for Sha256EmptyScan<'_> {
                 line,
                 function_name: self.fn_name.clone(),
                 description: format!(
-                    "Method `{}` calls `env.crypto().{}` on an empty input. "
-                    "Hashing empty data yields a known constant digest and is likely a bug.",
+                    "Method `{}` calls `env.crypto().{}` on an empty input. Hashing empty data yields a known constant digest and is likely a bug.",
                     self.fn_name,
                     i.method
                 ),
@@ -81,12 +80,38 @@ fn is_empty_expr(expr: &Expr) -> bool {
     match expr {
         Expr::Reference(ExprReference { expr: inner, .. }) => is_empty_expr(inner),
         Expr::MethodCall(call) => is_bytes_empty_constructor(call),
+        Expr::Call(call) => is_bytes_empty_constructor_call(call),
         Expr::Array(ExprArray { elems, .. }) => elems.is_empty(),
         Expr::Lit(lit) => match &lit.lit {
             Lit::ByteStr(bs) => bs.value().is_empty(),
             _ => false,
         },
         _ => false,
+    }
+}
+
+fn is_bytes_type_path(path: &syn::Path) -> bool {
+    path.segments.iter().any(|s| s.ident == "Bytes")
+}
+
+// Handles Bytes::new(&env) and Bytes::from_slice(&env, &[]) as ExprCall
+fn is_bytes_empty_constructor_call(call: &ExprCall) -> bool {
+    let Expr::Path(ExprPath { path, .. }) = &*call.func else {
+        return false;
+    };
+    let Some(method_seg) = path.segments.last() else {
+        return false;
+    };
+    if !is_bytes_type_path(path) {
+        return false;
+    }
+    let method = method_seg.ident.to_string();
+    if method == "new" {
+        call.args.len() == 1
+    } else if method == "from_slice" {
+        call.args.len() == 2 && is_empty_expr(&call.args[1])
+    } else {
+        false
     }
 }
 
@@ -108,10 +133,12 @@ fn is_bytes_empty_constructor(call: &ExprMethodCall) -> bool {
         return false;
     }
 
-    match call.method.as_str() {
-        "new" => call.args.len() == 1,
-        "from_slice" => call.args.len() == 2 && is_empty_expr(&call.args[1]),
-        _ => false,
+    if call.method == "new" {
+        call.args.len() == 1
+    } else if call.method == "from_slice" {
+        call.args.len() == 2 && is_empty_expr(&call.args[1])
+    } else {
+        false
     }
 }
 

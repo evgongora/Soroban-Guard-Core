@@ -107,26 +107,26 @@ struct UnauthStructVisitor<'a> {
 
 impl<'ast> Visit<'ast> for UnauthStructVisitor<'ast> {
     fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
-        if i.method == "set" && receiver_chain_contains_storage(&i.receiver) {
-            if i.args.len() >= 2 {
-                if value_arg_contains_struct_with_addr(&i.args[1], &self.addr_params) {
-                    self.out.push(Finding {
-                        check_name: CHECK_NAME.to_string(),
-                        severity: Severity::High,
-                        file_path: String::new(),
-                        line: i.span().start().line,
-                        function_name: self.fn_name.clone(),
-                        description: format!(
-                            "Method `{}` stores a struct containing an `Address` field \
+        if i.method == "set"
+            && receiver_chain_contains_storage(&i.receiver)
+            && i.args.len() >= 2
+            && value_arg_contains_struct_with_addr(&i.args[1], &self.addr_params)
+        {
+            self.out.push(Finding {
+                check_name: CHECK_NAME.to_string(),
+                severity: Severity::High,
+                file_path: String::new(),
+                line: i.span().start().line,
+                function_name: self.fn_name.clone(),
+                description: format!(
+                    "Method `{}` stores a struct containing an `Address` field \
                              sourced from a function parameter without calling \
                              `require_auth()` on that address. An attacker can register \
                              arbitrary addresses as owners of stored records. Call \
                              `require_auth()` on the address parameter before the write.",
-                            self.fn_name
-                        ),
-                    });
-                }
-            }
+                    self.fn_name
+                ),
+            });
         }
         visit::visit_expr_method_call(self, i);
     }

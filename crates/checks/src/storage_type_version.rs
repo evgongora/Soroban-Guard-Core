@@ -4,11 +4,8 @@
 //! or incompatible types can lead to unexpected behavior and security vulnerabilities.
 
 use crate::{Check, Finding, Severity};
-use quote::ToTokens;
-use std::collections::HashMap;
-use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, File, Lit, LitStr, Pat, Stmt};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "storage-type-version";
 
@@ -23,10 +20,9 @@ impl Check for StorageTypeVersionCheck {
 
     fn run(&self, file: &File, _source: &str) -> Vec<Finding> {
         let mut out = Vec::new();
-        
-        // Collect all storage types used in the contract
+
         let mut storage_types = std::collections::HashSet::new();
-        
+
         for item in &file.items {
             match item {
                 syn::Item::Fn(func) => {
@@ -35,11 +31,20 @@ impl Check for StorageTypeVersionCheck {
                     };
                     v.visit_item_fn(func);
                 }
+                syn::Item::Impl(impl_block) => {
+                    for impl_item in &impl_block.items {
+                        if let syn::ImplItem::Fn(func) = impl_item {
+                            let mut v = StorageTypeVisitor {
+                                storage_types: &mut storage_types,
+                            };
+                            v.visit_impl_item_fn(func);
+                        }
+                    }
+                }
                 _ => {}
             }
         }
-        
-        // Check for inconsistent storage types
+
         if storage_types.len() > 1 {
             out.push(Finding {
                 check_name: CHECK_NAME.to_string(),
@@ -50,31 +55,9 @@ impl Check for StorageTypeVersionCheck {
                 description: format!("Contract uses multiple storage types: {:?}. Consider using a consistent storage tier for better predictability and security.", storage_types),
             });
         }
-        Expr::Field(f) => receiver_chain_contains_storage(&f.base),
-        _ => false,
+
+        out
     }
-}
-
-fn is_storage_set_call(m: &ExprMethodCall) -> bool {
-    m.method == "set" && receiver_chain_contains_storage(&m.receiver)
-}
-
-fn is_storage_get_call(m: &ExprMethodCall) -> bool {
-    m.method == "get" && receiver_chain_contains_storage(&m.receiver)
-}
-
-fn extract_key_from_call(m: &ExprMethodCall) -> Option<String> {
-    if m.args.is_empty() {
-        return None;
-    }
-    Some(m.args[0].to_token_stream().to_string())
-}
-
-fn extract_value_type_from_set(m: &ExprMethodCall) -> Option<String> {
-    if m.args.len() < 2 {
-        return None;
-    }
-    Some(m.args[1].to_token_stream().to_string())
 }
 
 struct StorageTypeVisitor<'a> {
@@ -83,9 +66,7 @@ struct StorageTypeVisitor<'a> {
 
 impl<'a> Visit<'a> for StorageTypeVisitor<'a> {
     fn visit_expr_method_call(&mut self, i: &'a ExprMethodCall) {
-        // Look for storage method calls
         if i.method == "persistent" || i.method == "instance" || i.method == "temporary" {
-            // Check if this is part of a storage chain
             if let Expr::MethodCall(mc) = &*i.receiver {
                 if mc.method == "storage" {
                     self.storage_types.insert(i.method.to_string());

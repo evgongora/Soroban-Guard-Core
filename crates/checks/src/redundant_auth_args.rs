@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Block, Expr, ExprMethodCall, ExprTuple, File, FnArg, Pat, PatType};
+use syn::{Block, Expr, ExprMethodCall, File, FnArg, Pat, PatType};
 
 const CHECK_NAME: &str = "redundant-auth-args";
 
@@ -34,7 +34,9 @@ impl Check for RedundantAuthArgsCheck {
     }
 }
 
-fn extract_param_names(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>) -> Vec<String> {
+fn extract_param_names(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
+) -> Vec<String> {
     let mut names = Vec::new();
     for arg in inputs {
         if let FnArg::Typed(PatType { pat, .. }) = arg {
@@ -72,17 +74,13 @@ fn extract_key_name(arg: &Option<&syn::Expr>) -> Option<String> {
     let arg = arg.as_ref()?;
     match *arg {
         Expr::Reference(r) => extract_key_name_from_expr(&r.expr),
-        other => extract_key_name_from_expr(&other),
+        other => extract_key_name_from_expr(other),
     }
 }
 
 fn extract_key_name_from_expr(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Path(p) => p
-            .path
-            .segments
-            .last()
-            .map(|s| s.ident.to_string()),
+        Expr::Path(p) => p.path.segments.last().map(|s| s.ident.to_string()),
         Expr::Lit(l) => match &l.lit {
             syn::Lit::Str(s) => Some(s.value()),
             _ => None,
@@ -122,23 +120,21 @@ struct RedundantAuthArgsVisitor<'a> {
 impl Visit<'_> for RedundantAuthArgsVisitor<'_> {
     fn visit_expr_method_call(&mut self, i: &ExprMethodCall) {
         if i.method == "require_auth_for_args" {
-            if let Some(arg) = i.args.first() {
-                if let Expr::Tuple(tuple) = arg {
-                    if all_args_derivable(&tuple.elems, &self.param_names, &self.storage_keys) {
-                        self.out.push(Finding {
-                            check_name: CHECK_NAME.to_string(),
-                            severity: Severity::Low,
-                            file_path: String::new(),
-                            line: i.span().start().line,
-                            function_name: self.fn_name.clone(),
-                            description: format!(
-                                "Method `{}` calls `require_auth_for_args()` where all arguments \
-                                 are string literals or values freshly read from storage. This \
-                                 defeats the purpose of binding auth to call-specific arguments.",
-                                self.fn_name
-                            ),
-                        });
-                    }
+            if let Some(Expr::Tuple(tuple)) = i.args.first() {
+                if all_args_derivable(&tuple.elems, &self.param_names, &self.storage_keys) {
+                    self.out.push(Finding {
+                        check_name: CHECK_NAME.to_string(),
+                        severity: Severity::Low,
+                        file_path: String::new(),
+                        line: i.span().start().line,
+                        function_name: self.fn_name.clone(),
+                        description: format!(
+                            "Method `{}` calls `require_auth_for_args()` where all arguments \
+                             are string literals or values freshly read from storage. This \
+                             defeats the purpose of binding auth to call-specific arguments.",
+                            self.fn_name
+                        ),
+                    });
                 }
             }
         }
@@ -151,9 +147,9 @@ fn all_args_derivable(
     _param_names: &[String],
     storage_keys: &[String],
 ) -> bool {
-    elems.iter().all(|e| {
-        is_string_literal(e) || is_storage_read(e, storage_keys)
-    })
+    elems
+        .iter()
+        .all(|e| is_string_literal(e) || is_storage_read(e, storage_keys))
 }
 
 #[cfg(test)]

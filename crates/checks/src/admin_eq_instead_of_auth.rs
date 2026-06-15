@@ -49,7 +49,11 @@ fn is_admin_storage_get(expr: &Expr) -> bool {
             }
             false
         }
-        Expr::MethodCall(m) if m.method == "unwrap" || m.method == "unwrap_or_default" || m.method == "unwrap_or" => {
+        Expr::MethodCall(m)
+            if m.method == "unwrap"
+                || m.method == "unwrap_or_default"
+                || m.method == "unwrap_or" =>
+        {
             is_admin_storage_get(&m.receiver)
         }
         _ => false,
@@ -88,9 +92,7 @@ fn is_admin_key_expr(expr: &Expr) -> bool {
 
 fn expr_ident(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Path(p) if p.path.segments.len() == 1 => {
-            Some(p.path.segments[0].ident.to_string())
-        }
+        Expr::Path(p) if p.path.segments.len() == 1 => Some(p.path.segments[0].ident.to_string()),
         _ => None,
     }
 }
@@ -116,9 +118,7 @@ impl<'ast> Visit<'ast> for AdminEqScan<'_> {
     }
 
     fn visit_expr_binary(&mut self, i: &'ast ExprBinary) {
-        if !self.has_require_auth
-            && matches!(i.op, syn::BinOp::Eq(_) | syn::BinOp::Ne(_))
-        {
+        if !self.has_require_auth && matches!(i.op, syn::BinOp::Eq(_) | syn::BinOp::Ne(_)) {
             let left_id = expr_ident(&i.left);
             let right_id = expr_ident(&i.right);
             let involves_admin = [&left_id, &right_id].iter().any(|id| {

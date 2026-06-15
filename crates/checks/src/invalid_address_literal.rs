@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprCall, ExprMethodCall, File, Lit, LitStr, Pat, Stmt};
+use syn::{Expr, ExprCall, File, Lit};
 
 const CHECK_NAME: &str = "invalid-address-literal";
 
@@ -18,7 +18,7 @@ impl Check for InvalidAddressLiteralCheck {
 
     fn run(&self, file: &File, _source: &str) -> Vec<Finding> {
         let mut out = Vec::new();
-        
+
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
             let mut v = AddressVisitor {
@@ -27,7 +27,7 @@ impl Check for InvalidAddressLiteralCheck {
             };
             v.visit_block(&method.block);
         }
-        
+
         out
     }
 }
@@ -55,7 +55,8 @@ fn is_stellar_address(s: &str) -> bool {
     if !s.starts_with('G') {
         return false;
     }
-    s.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+    s.chars()
+        .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
 }
 
 struct AddressVisitor<'a> {

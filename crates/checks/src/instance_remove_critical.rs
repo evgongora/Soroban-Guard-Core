@@ -8,7 +8,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprCall, ExprLit, ExprMethodCall, File, Lit};
+use syn::{Expr, ExprLit, ExprMethodCall, File, Lit};
 
 const CHECK_NAME: &str = "instance-remove-critical";
 
@@ -75,9 +75,9 @@ impl Visit<'_> for RemoveVisitor<'_> {
                 if CRITICAL_PATTERNS
                     .iter()
                     .any(|pattern| key_lower.contains(pattern))
+                    && !self.has_require_auth
                 {
-                    if !self.has_require_auth {
-                        self.out.push(Finding {
+                    self.out.push(Finding {
                             check_name: CHECK_NAME.to_string(),
                             severity: Severity::High,
                             file_path: String::new(),
@@ -90,7 +90,6 @@ impl Visit<'_> for RemoveVisitor<'_> {
                                 self.fn_name, key_str
                             ),
                         });
-                    }
                 }
             }
         }
@@ -133,33 +132,28 @@ fn extract_key_literal(call: &ExprMethodCall) -> Option<String> {
                         if let Expr::Path(p) = &*c.func {
                             if let Some(last_seg) = p.path.segments.last() {
                                 if last_seg.ident == "new" && c.args.len() >= 2 {
-                                    if let Some(second_arg) = c.args.iter().nth(1) {
-                                        if let Expr::Lit(ExprLit {
-                                            lit: Lit::Str(lit_str),
-                                            ..
-                                        }) = second_arg
-                                        {
-                                            return Some(lit_str.value());
-                                        }
+                                    if let Some(Expr::Lit(ExprLit {
+                                        lit: Lit::Str(lit_str),
+                                        ..
+                                    })) = c.args.iter().nth(1)
+                                    {
+                                        return Some(lit_str.value());
                                     }
                                 }
                             }
                         }
                     }
-                    Expr::MethodCall(m) => {
+                    Expr::MethodCall(m)
                         // Handle &Symbol::new(&env, "key") pattern
-                        if m.method == "new" && m.args.len() >= 2 {
-                            if let Some(second_arg) = m.args.iter().nth(1) {
-                                if let Expr::Lit(ExprLit {
-                                    lit: Lit::Str(lit_str),
-                                    ..
-                                }) = second_arg
-                                {
-                                    return Some(lit_str.value());
-                                }
+                        if m.method == "new" && m.args.len() >= 2 => {
+                            if let Some(Expr::Lit(ExprLit {
+                                lit: Lit::Str(lit_str),
+                                ..
+                            })) = m.args.iter().nth(1)
+                            {
+                                return Some(lit_str.value());
                             }
                         }
-                    }
                     _ => {}
                 }
             }
@@ -168,33 +162,28 @@ fn extract_key_literal(call: &ExprMethodCall) -> Option<String> {
                 if let Expr::Path(p) = &*c.func {
                     if let Some(last_seg) = p.path.segments.last() {
                         if last_seg.ident == "new" && c.args.len() >= 2 {
-                            if let Some(second_arg) = c.args.iter().nth(1) {
-                                if let Expr::Lit(ExprLit {
-                                    lit: Lit::Str(lit_str),
-                                    ..
-                                }) = second_arg
-                                {
-                                    return Some(lit_str.value());
-                                }
+                            if let Some(Expr::Lit(ExprLit {
+                                lit: Lit::Str(lit_str),
+                                ..
+                            })) = c.args.iter().nth(1)
+                            {
+                                return Some(lit_str.value());
                             }
                         }
                     }
                 }
             }
-            Expr::MethodCall(m) => {
+            Expr::MethodCall(m)
                 // Handle Symbol::new(&env, "key") pattern (without reference)
-                if m.method == "new" && m.args.len() >= 2 {
-                    if let Some(second_arg) = m.args.iter().nth(1) {
-                        if let Expr::Lit(ExprLit {
-                            lit: Lit::Str(lit_str),
-                            ..
-                        }) = second_arg
-                        {
-                            return Some(lit_str.value());
-                        }
+                if m.method == "new" && m.args.len() >= 2 => {
+                    if let Some(Expr::Lit(ExprLit {
+                        lit: Lit::Str(lit_str),
+                        ..
+                    })) = m.args.iter().nth(1)
+                    {
+                        return Some(lit_str.value());
                     }
                 }
-            }
             _ => {}
         }
     }

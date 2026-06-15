@@ -60,7 +60,10 @@ fn is_float_cast(expr: &Expr) -> bool {
 }
 
 fn operand_is_float(expr: &Expr) -> bool {
-    is_float_lit(expr) || is_float_cast(expr)
+    match expr {
+        Expr::Paren(p) => operand_is_float(&p.expr),
+        _ => is_float_lit(expr) || is_float_cast(expr),
+    }
 }
 
 struct FloatVisitor<'a> {

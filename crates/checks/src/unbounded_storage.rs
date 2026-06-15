@@ -27,6 +27,7 @@ impl Check for UnboundedStorageCheck {
             let fn_name = method.sig.ident.to_string();
             let mut scan = UnboundedStorageScan {
                 fn_name,
+                storage_vars: Vec::new(),
                 out: &mut out,
             };
             scan.visit_block(&method.block);
@@ -37,37 +38,57 @@ impl Check for UnboundedStorageCheck {
 
 struct UnboundedStorageScan<'a> {
     fn_name: String,
+    storage_vars: Vec<String>,
     out: &'a mut Vec<Finding>,
 }
 
 impl<'ast> Visit<'ast> for UnboundedStorageScan<'_> {
-    fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
-        // Check for push_back, push_front, insert methods
-        let method_name = i.method.to_string();
-        if matches!(method_name.as_str(), "push_back" | "push_front" | "insert") {
-            // Check if receiver is from instance storage
-            if is_from_instance_storage(&i.receiver) {
-                // For simplicity, we flag all unbounded push/insert operations.
-                // A more sophisticated check would track whether there was a
-                // preceding .len() or .capacity() check.
-                let line = i.span().start().line;
-                self.out.push(Finding {
-                    check_name: CHECK_NAME.to_string(),
-                    severity: Severity::Medium,
-                    file_path: String::new(),
-                    line,
-                    function_name: self.fn_name.clone(),
-                    description: format!(
-                        "Method `{}` calls `{}` on a value from instance storage without \
-                         an apparent size/capacity check. This can cause unbounded growth, \
-                         exceeding ledger limits and bricking the contract.",
-                        self.fn_name, method_name
-                    ),
-                });
+    fn visit_local(&mut self, i: &'ast syn::Local) {
+        if let Some(init) = &i.init {
+            if is_from_instance_storage(&init.expr) {
+                if let syn::Pat::Ident(pat_ident) = &i.pat {
+                    self.storage_vars.push(pat_ident.ident.to_string());
+                }
             }
+        }
+        visit::visit_local(self, i);
+    }
+
+    fn visit_expr_method_call(&mut self, i: &'ast ExprMethodCall) {
+        let method_name = i.method.to_string();
+        if matches!(method_name.as_str(), "push_back" | "push_front" | "insert")
+            && (is_from_instance_storage(&i.receiver)
+                || is_storage_var(&i.receiver, &self.storage_vars))
+        {
+            let line = i.span().start().line;
+            self.out.push(Finding {
+                check_name: CHECK_NAME.to_string(),
+                severity: Severity::Medium,
+                file_path: String::new(),
+                line,
+                function_name: self.fn_name.clone(),
+                description: format!(
+                    "Method `{}` calls `{}` on a value from instance storage without \
+                     an apparent size/capacity check. This can cause unbounded growth, \
+                     exceeding ledger limits and bricking the contract.",
+                    self.fn_name, method_name
+                ),
+            });
         }
 
         visit::visit_expr_method_call(self, i);
+    }
+}
+
+fn is_storage_var(expr: &Expr, storage_vars: &[String]) -> bool {
+    match expr {
+        Expr::Path(p) => p
+            .path
+            .segments
+            .first()
+            .is_some_and(|s| storage_vars.contains(&s.ident.to_string())),
+        Expr::MethodCall(m) => is_storage_var(&m.receiver, storage_vars),
+        _ => false,
     }
 }
 
@@ -75,10 +96,8 @@ fn is_from_instance_storage(expr: &Expr) -> bool {
     match expr {
         Expr::MethodCall(m) => {
             // Check if this is a .get() call on instance storage
-            if m.method == "get" {
-                if is_instance_storage_receiver(&m.receiver) {
-                    return true;
-                }
+            if m.method == "get" && is_instance_storage_receiver(&m.receiver) {
+                return true;
             }
             // Otherwise recurse
             is_from_instance_storage(&m.receiver)
@@ -141,7 +160,7 @@ impl MyContract {
         let file = parse_file(code).unwrap();
         let check = UnboundedStorageCheck;
         let findings = check.run(&file, code);
-        assert!(findings.len() >= 1);
+        assert!(!findings.is_empty());
     }
 
     #[test]

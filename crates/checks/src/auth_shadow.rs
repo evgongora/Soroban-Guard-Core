@@ -34,7 +34,9 @@ impl Check for AuthShadowCheck {
     }
 }
 
-fn extract_address_params(inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>) -> Vec<String> {
+fn extract_address_params(
+    inputs: &syn::punctuated::Punctuated<FnArg, syn::token::Comma>,
+) -> Vec<String> {
     let mut names = Vec::new();
     for arg in inputs {
         if let FnArg::Typed(PatType { pat, ty, .. }) = arg {
@@ -50,12 +52,7 @@ fn extract_address_params(inputs: &syn::punctuated::Punctuated<FnArg, syn::token
 
 fn is_address_type(ty: &syn::Type) -> bool {
     match ty {
-        syn::Type::Path(p) => {
-            p.path
-                .segments
-                .last()
-                .is_some_and(|s| s.ident == "Address")
-        }
+        syn::Type::Path(p) => p.path.segments.last().is_some_and(|s| s.ident == "Address"),
         _ => false,
     }
 }
@@ -73,7 +70,10 @@ struct StorageKeyExtractor<'a> {
 
 impl Visit<'_> for StorageKeyExtractor<'_> {
     fn visit_expr_method_call(&mut self, i: &ExprMethodCall) {
-        if matches!(i.method.to_string().as_str(), "get" | "has" | "remove" | "set") {
+        if matches!(
+            i.method.to_string().as_str(),
+            "get" | "has" | "remove" | "set"
+        ) {
             if let Some(key) = extract_key_name(&i.args.first()) {
                 self.keys.push(key);
             }
@@ -92,15 +92,15 @@ fn extract_key_name(arg: &Option<&syn::Expr>) -> Option<String> {
 
 fn extract_key_name_from_expr(expr: &Expr) -> Option<String> {
     match expr {
-        Expr::Path(p) => p
-            .path
-            .segments
-            .last()
-            .map(|s| s.ident.to_string()),
+        Expr::Path(p) => p.path.segments.last().map(|s| s.ident.to_string()),
         Expr::Lit(l) => match &l.lit {
             syn::Lit::Str(s) => Some(s.value()),
             _ => None,
         },
+        Expr::Call(c) => {
+            // Symbol::new(&env, "admin") — extract last string arg
+            c.args.last().and_then(extract_key_name_from_expr)
+        }
         _ => None,
     }
 }

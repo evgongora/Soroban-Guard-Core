@@ -7,7 +7,20 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File, FnArg, Pat, Type, Visibility};
+use syn::{BinOp, Expr, ExprBinary, ExprMethodCall, File, FnArg, Macro, Pat, Type, Visibility};
+
+fn extract_first_macro_arg(mac: &Macro) -> proc_macro2::TokenStream {
+    let mut result = proc_macro2::TokenStream::new();
+    for tt in mac.tokens.clone().into_iter() {
+        if let proc_macro2::TokenTree::Punct(p) = &tt {
+            if p.as_char() == ',' {
+                break;
+            }
+        }
+        result.extend(std::iter::once(tt));
+    }
+    result
+}
 
 const CHECK_NAME: &str = "negative-deposit";
 
@@ -61,40 +74,6 @@ fn type_to_str(ty: &Type) -> String {
     }
 }
 
-/// Count non-Env parameters.
-fn non_env_param_count(method: &syn::ImplItemFn) -> usize {
-    method
-        .sig
-        .inputs
-        .iter()
-        .filter(|arg| match arg {
-            FnArg::Typed(pt) => {
-                let ty = type_to_str(&pt.ty);
-                ty != "Env" && ty != "env"
-            }
-            FnArg::Receiver(_) => false,
-        })
-        .count()
-}
-
-fn expr_contains_ident(expr: &Expr, name: &str) -> bool {
-    match expr {
-        Expr::Path(p) => p.path.is_ident(name),
-        Expr::Reference(r) => expr_contains_ident(&r.expr, name),
-        Expr::Binary(b) => {
-            expr_contains_ident(&b.left, name) || expr_contains_ident(&b.right, name)
-        }
-        Expr::MethodCall(m) => {
-            expr_contains_ident(&m.receiver, name)
-                || m.args.iter().any(|a| expr_contains_ident(a, name))
-        }
-        Expr::Call(c) => c.args.iter().any(|a| expr_contains_ident(a, name)),
-        Expr::Unary(u) => expr_contains_ident(&u.expr, name),
-        Expr::Paren(p) => expr_contains_ident(&p.expr, name),
-        _ => false,
-    }
-}
-
 #[derive(Default)]
 struct DepositScan {
     has_positive_guard: bool,
@@ -104,6 +83,20 @@ struct DepositScan {
 }
 
 impl<'ast> Visit<'ast> for DepositScan {
+    fn visit_macro(&mut self, i: &'ast Macro) {
+        // Try parsing as a single expression first (assert!(cond))
+        if let Ok(expr) = i.parse_body::<Expr>() {
+            self.visit_expr(&expr);
+        } else {
+            // For assert!(cond, "msg") style: extract tokens before the first top-level comma
+            let first_arg = extract_first_macro_arg(i);
+            if let Ok(expr) = syn::parse2::<Expr>(first_arg) {
+                self.visit_expr(&expr);
+            }
+        }
+        visit::visit_macro(self, i);
+    }
+
     fn visit_expr_binary(&mut self, i: &ExprBinary) {
         // Look for `amount > 0`, `amount >= 1`, `0 < amount`, `1 <= amount`
         // or assert!(amount > 0) — we catch the BinOp directly.

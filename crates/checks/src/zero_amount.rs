@@ -34,7 +34,7 @@ impl Check for ZeroAmountCheck {
             let has_amount_param = method.sig.inputs.iter().any(|input| {
                 if let FnArg::Typed(PatType { pat, .. }) = input {
                     if let Pat::Ident(ident) = &**pat {
-                        ident.ident.to_string() == "amount"
+                        ident.ident == "amount"
                     } else {
                         false
                     }
@@ -88,7 +88,7 @@ impl<'ast> Visit<'ast> for AmountCheckScanner {
 
         if left_is_amount && right_is_zero {
             match i.op {
-                BinOp::Gt(_) | BinOp::Ge(_) | BinOp::Ne(_) => {
+                BinOp::Gt(_) | BinOp::Ge(_) | BinOp::Ne(_) | BinOp::Lt(_) | BinOp::Le(_) => {
                     self.found_check = true;
                 }
                 _ => {}

@@ -77,26 +77,24 @@ struct ExpectLeaksVisitor<'a> {
 impl Visit<'_> for ExpectLeaksVisitor<'_> {
     fn visit_expr_method_call(&mut self, i: &ExprMethodCall) {
         if i.method == "expect" {
-            if let Some(arg) = i.args.first() {
-                if let Expr::Lit(expr_lit) = arg {
-                    if let Lit::Str(lit_str) = &expr_lit.lit {
-                        let msg = lit_str.value();
-                        if msg_leaks(&msg, &self.key_names) {
-                            self.out.push(Finding {
-                                check_name: CHECK_NAME.to_string(),
-                                severity: Severity::Low,
-                                file_path: String::new(),
-                                line: i.span().start().line,
-                                function_name: self.fn_name.clone(),
-                                description: format!(
-                                    "`.expect(\"{msg}\")` in `{}` leaks internal storage key \
+            if let Some(Expr::Lit(expr_lit)) = i.args.first() {
+                if let Lit::Str(lit_str) = &expr_lit.lit {
+                    let msg = lit_str.value();
+                    if msg_leaks(&msg, &self.key_names) {
+                        self.out.push(Finding {
+                            check_name: CHECK_NAME.to_string(),
+                            severity: Severity::Low,
+                            file_path: String::new(),
+                            line: i.span().start().line,
+                            function_name: self.fn_name.clone(),
+                            description: format!(
+                                "`.expect(\"{msg}\")` in `{}` leaks internal storage key \
                                      or state information into on-chain output. Use a generic \
                                      error message that does not reference internal keys or \
                                      format specifiers.",
-                                    self.fn_name
-                                ),
-                            });
-                        }
+                                self.fn_name
+                            ),
+                        });
                     }
                 }
             }
@@ -132,9 +130,7 @@ impl C {
 
     #[test]
     fn flags_format_specifier() {
-        let src = with_body(
-            r#"env.storage().persistent().get(&balance_key).expect("failed: {}")"#,
-        );
+        let src = with_body(r#"env.storage().persistent().get(&balance_key).expect("failed: {}")"#);
         let hits = run(&src);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].check_name, CHECK_NAME);

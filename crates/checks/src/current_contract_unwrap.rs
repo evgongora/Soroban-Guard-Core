@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprMethodCall, ExprPath, File};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "current-contract-unwrap";
 

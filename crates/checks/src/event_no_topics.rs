@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
-use syn::{Expr, ExprArray, ExprCall, ExprMethodCall, File};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "event-no-topics";
 
@@ -92,22 +92,20 @@ struct EventVisitor<'a> {
 
 impl<'a> Visit<'a> for EventVisitor<'a> {
     fn visit_expr_method_call(&mut self, m: &'a ExprMethodCall) {
-        if is_events_publish(m) {
-            if !m.args.is_empty() {
-                let first_arg = &m.args[0];
-                if is_empty_array(first_arg) {
-                    self.out.push(Finding {
-                        check_name: CHECK_NAME.to_string(),
-                        severity: Severity::Low,
-                        file_path: String::new(),
-                        line: m.span().start().line,
-                        function_name: self.fn_name.clone(),
-                        description: "Event published with empty topics array. Events must have \
+        if is_events_publish(m) && !m.args.is_empty() {
+            let first_arg = &m.args[0];
+            if is_empty_array(first_arg) {
+                self.out.push(Finding {
+                    check_name: CHECK_NAME.to_string(),
+                    severity: Severity::Low,
+                    file_path: String::new(),
+                    line: m.span().start().line,
+                    function_name: self.fn_name.clone(),
+                    description: "Event published with empty topics array. Events must have \
                                        at least one topic for off-chain indexers to categorize \
                                        and filter events."
-                            .to_string(),
-                    });
-                }
+                        .to_string(),
+                });
             }
         }
         visit::visit_expr_method_call(self, m);

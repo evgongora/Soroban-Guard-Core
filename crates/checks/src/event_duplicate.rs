@@ -3,10 +3,10 @@
 use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use quote::ToTokens;
+use std::collections::HashMap;
 use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 use syn::{Expr, ExprMethodCall, File};
-use std::collections::HashMap;
 
 const CHECK_NAME: &str = "event-duplicate";
 
@@ -22,10 +22,7 @@ impl Check for EventDuplicateCheck {
         let mut out = Vec::new();
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
-            let mut v = EventCollector {
-                fn_name: fn_name.clone(),
-                events: Vec::new(),
-            };
+            let mut v = EventCollector { events: Vec::new() };
             v.visit_block(&method.block);
 
             // Find duplicates
@@ -85,7 +82,6 @@ fn event_signature(m: &ExprMethodCall) -> String {
 }
 
 struct EventCollector {
-    fn_name: String,
     events: Vec<(usize, String)>,
 }
 

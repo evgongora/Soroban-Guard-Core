@@ -50,8 +50,12 @@ impl<'ast> Visit<'ast> for RecoverBindingCollector {
             let mut finder = RecoverCallFinder { found: false };
             finder.visit_expr(&init.expr);
             if finder.found {
-                // Extract the binding name from the pattern.
-                if let Pat::Ident(pi) = &i.pat {
+                // Extract the binding name from the pattern (unwrap Pat::Type).
+                let pat = match &i.pat {
+                    Pat::Type(pt) => &*pt.pat,
+                    p => p,
+                };
+                if let Pat::Ident(pi) = pat {
                     self.bindings.push(pi.ident.to_string());
                 }
             }
@@ -104,32 +108,30 @@ fn expr_contains_binding(expr: &Expr, bindings: &[String]) -> bool {
 
 impl<'ast> Visit<'ast> for EqCompareChecker<'_> {
     fn visit_expr_binary(&mut self, i: &'ast ExprBinary) {
-        if matches!(i.op, BinOp::Eq(_) | BinOp::Ne(_)) {
-            if expr_contains_binding(&i.left, self.bindings)
-                || expr_contains_binding(&i.right, self.bindings)
-            {
-                self.found = true;
-            }
+        if matches!(i.op, BinOp::Eq(_) | BinOp::Ne(_))
+            && (expr_contains_binding(&i.left, self.bindings)
+                || expr_contains_binding(&i.right, self.bindings))
+        {
+            self.found = true;
         }
         visit::visit_expr_binary(self, i);
     }
 
-    // Also catch assert_eq! / assert_ne! macros.
-    fn visit_expr_macro(&mut self, i: &'ast syn::ExprMacro) {
+    // Also catch assert_eq! / assert_ne! macros (both Stmt::Macro and Expr::Macro forms).
+    fn visit_macro(&mut self, i: &'ast syn::Macro) {
         let mac_name = i
-            .mac
             .path
             .segments
             .last()
             .map(|s| s.ident.to_string())
             .unwrap_or_default();
         if matches!(mac_name.as_str(), "assert_eq" | "assert_ne" | "require") {
-            let tokens = i.mac.tokens.to_string();
+            let tokens = i.tokens.to_string();
             if self.bindings.iter().any(|b| tokens.contains(b.as_str())) {
                 self.found = true;
             }
         }
-        visit::visit_expr_macro(self, i);
+        visit::visit_macro(self, i);
     }
 }
 

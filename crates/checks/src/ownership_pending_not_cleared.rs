@@ -126,10 +126,8 @@ impl<'ast> Visit<'ast> for StorageScan {
                             self.clears_pending = true;
                         }
                     }
-                    "remove" => {
-                        if is_pending_key(&key_text) {
-                            self.clears_pending = true;
-                        }
+                    "remove" if is_pending_key(&key_text) => {
+                        self.clears_pending = true;
                     }
                     _ => {}
                 }

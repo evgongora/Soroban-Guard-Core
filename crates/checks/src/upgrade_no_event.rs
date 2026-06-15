@@ -4,7 +4,7 @@ use crate::util::contractimpl_functions;
 use crate::{Check, Finding, Severity};
 use syn::spanned::Spanned;
 use syn::visit::Visit;
-use syn::{Expr, ExprMethodCall, File, Stmt};
+use syn::{Expr, ExprMethodCall, File};
 
 const CHECK_NAME: &str = "upgrade-no-event";
 
@@ -22,12 +22,12 @@ impl Check for UpgradeNoEventCheck {
         let mut out = Vec::new();
         for method in contractimpl_functions(file) {
             let fn_name = method.sig.ident.to_string();
-            
+
             // Walk statements in order; track event and hash verification
             let mut upgrade_line: Option<usize> = None;
             let mut has_event = false;
             let mut has_hash_check = false;
-            
+
             for stmt in &method.block.stmts {
                 // Check current statement for events
                 let mut event_check = EventChecker { found: false };
@@ -35,22 +35,23 @@ impl Check for UpgradeNoEventCheck {
                 if event_check.found {
                     has_event = true;
                 }
-                
+
                 // Check for upgrade call and hash verification
                 let mut upgrade_check = UpgradeChecker {
                     upgrade_line: None,
                     has_verification: false,
                 };
                 upgrade_check.visit_stmt(stmt);
-                
-                if upgrade_check.upgrade_line.is_some() && !has_hash_check && !upgrade_line.is_some() {
+
+                if upgrade_check.upgrade_line.is_some() && !has_hash_check && upgrade_line.is_none()
+                {
                     upgrade_line = upgrade_check.upgrade_line;
                 }
                 if upgrade_check.has_verification && upgrade_line.is_none() {
                     has_hash_check = true;
                 }
             }
-            
+
             if let Some(line) = upgrade_line {
                 if !has_event {
                     out.push(Finding {
@@ -135,8 +136,7 @@ mod tests {
 
     #[test]
     fn flags_upgrade_without_event() {
-        let hits = run(
-            r#"
+        let hits = run(r#"
 use soroban_sdk::{contract, contractimpl, Bytes, Env};
 
 #[contract]
@@ -148,16 +148,14 @@ impl C {
         env.deployer().update_current_contract_wasm(new_wasm);
     }
 }
-"#,
-        );
+"#);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].severity, Severity::Medium);
     }
 
     #[test]
     fn ignores_upgrade_with_event() {
-        let hits = run(
-            r#"
+        let hits = run(r#"
 use soroban_sdk::{contract, contractimpl, Bytes, Env, Symbol};
 
 #[contract]
@@ -170,8 +168,7 @@ impl C {
         env.events().publish((Symbol::new(&env, "upgraded"),), &new_wasm);
     }
 }
-"#,
-        );
+"#);
         assert_eq!(hits.len(), 0);
     }
 }
