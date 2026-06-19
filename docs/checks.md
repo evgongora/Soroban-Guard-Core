@@ -138,6 +138,33 @@ Similar key names can cause developers to accidentally use the wrong key when re
 
 ---
 
+## `balance-not-verified-after-transfer` (Medium)
+
+**Status:** Phase 2
+
+**What it detects**
+
+Inside `#[contractimpl]` methods, any `.transfer(...)` method call on a token client (not on bare `env`) that is not followed by a balance verification.
+
+A balance verification is recognized as:
+- A `.balance()` method call on the same token client after the transfer
+- An `assert!` or `require!` macro that checks balance values after the transfer
+
+**Why it matters**
+
+External token transfers can fail or behave unexpectedly due to insufficient balance, token contract logic, or other issues. Without verifying the balance after a transfer, the contract may proceed as if the transfer succeeded, leading to accounting errors, incorrect state updates, or potential exploits.
+
+**Limitations**
+
+- The current implementation is conservative and flags all external token transfers without balance verification
+- Does not analyze control flow across different branches or functions
+- Balance verification must be in the same basic block as the transfer
+- Does not distinguish between different token clients in complex scenarios
+
+**Fixture:** `test-contracts/balance-not-verified-after-transfer-vulnerable/`, `test-contracts/balance-not-verified-after-transfer-safe/`
+
+---
+
 ## `zero-divisor` (High)
 
 **Status:** Phase 2

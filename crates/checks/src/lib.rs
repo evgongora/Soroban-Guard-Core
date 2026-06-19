@@ -22,6 +22,7 @@ pub mod auth_temp_storage;
 pub mod authorize_as_contract;
 pub mod authorize_empty;
 pub mod balance_negative_check;
+pub mod balance_not_verified_after_transfer;
 pub mod balance_overflow;
 pub mod broken_pause;
 pub mod bump_after_read;
@@ -182,6 +183,7 @@ pub use auth_temp_storage::AuthTempStorageCheck;
 pub use authorize_as_contract::AuthorizeAsContractCheck;
 pub use authorize_empty::AuthorizeEmptyCheck;
 pub use balance_negative_check::BalanceNegativeCheck;
+pub use balance_not_verified_after_transfer::BalanceNotVerifiedAfterTransferCheck;
 pub use balance_overflow::BalanceOverflowCheck;
 pub use broken_pause::BrokenPauseCheck;
 pub use bump_after_read::BumpAfterReadCheck;
@@ -438,6 +440,7 @@ pub fn default_checks() -> Vec<Box<dyn Check + Send + Sync>> {
         Box::new(NonceIncrementOrderCheck),
         Box::new(NonceInTempCheck),
         Box::new(BalanceNegativeCheck),
+        Box::new(BalanceNotVerifiedAfterTransferCheck),
         Box::new(MulBeforeDivCheck),
         Box::new(TokenSharedStorageCheck),
         Box::new(AdminNoEventCheck),
