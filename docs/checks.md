@@ -189,3 +189,30 @@ Integer division or remainder by zero causes a panic in Rust, which terminates t
 - `assert_eq!(param, 0)` (two-argument form) is not recognized — only the single-argument `assert!` form counts.
 
 **Fixture:** `test-contracts/zero-divisor-vulnerable/`, `test-contracts/zero-divisor-safe/`
+
+---
+
+## `timestamp-as-nonce` (High)
+
+**Status:** Phase 2
+
+**What it detects**
+
+Inside `#[contractimpl]` methods, any use of `env.ledger().timestamp()` as a unique nonce or identifier:
+
+1. A `let` binding whose init expression contains an `env.ledger().timestamp()` chain, where the binding's name (lowercased) contains `"nonce"`, `"id"`, or `"unique_id"`.
+2. An `env.ledger().timestamp()` chain passed directly as an argument to a storage mutation named `set` (receiver chain containing `.storage()`) — e.g. `env.storage().persistent().set(&env.ledger().timestamp(), &v)`.
+
+Either condition flags the method once.
+
+**Why it matters**
+
+`env.ledger().timestamp()` is the close time of the *current ledger* and is identical for every transaction within that ledger. Using it as a unique nonce, identifier, or storage key means two transactions in the same ledger collide on the same value, enabling replay.
+
+**Limitations**
+
+- Structural/textual, not dataflow: the timestamp chain must appear directly in the flagged binding's init expression or storage-`set` argument, not several variables removed.
+- The name heuristic (`"id"` as a substring) can over-match identifiers that merely contain those letters (e.g. `valid`).
+- Only the `Env` binding named `env` counts, mirroring `missing-require-auth`.
+
+**Fixture:** `test-contracts/timestamp-as-nonce-vulnerable/`, `test-contracts/timestamp-as-nonce-safe/`
