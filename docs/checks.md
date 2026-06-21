@@ -216,3 +216,28 @@ Either condition flags the method once.
 - Only the `Env` binding named `env` counts, mirroring `missing-require-auth`.
 
 **Fixture:** `test-contracts/timestamp-as-nonce-vulnerable/`, `test-contracts/timestamp-as-nonce-safe/`
+
+---
+
+## `while-no-bound` (Medium)
+
+**Status:** Phase 2
+
+**What it detects**
+
+Inside `#[contractimpl]` methods, a `while` loop is flagged when both hold:
+
+1. Its condition depends on storage or a user-supplied parameter — the condition token stream contains `storage` (or its receiver chain reaches `.storage()`), or it contains the ident of one of the method's parameters.
+2. Its body shows no evidence of a capped exit — it does **not** contain both an `Expr::Break` and a comparison (`>=`, `>`, `<=`, `<`) anywhere within it.
+
+**Why it matters**
+
+A `while` loop whose condition is driven by storage state or an input has no guaranteed iteration bound. On Soroban this means unbounded compute fees and a possible instruction-limit panic, which an attacker can trigger by crafting storage state or passing a large input. Pairing a counter with a comparison guard and a `break` gives the loop a hard cap.
+
+**Limitations**
+
+- Coarse presence heuristic: "has a `break`" and "has a comparison" are detected anywhere in the body, without proving they are nested together or that the comparison actually bounds the counter.
+- The storage check is primarily textual (`contains("storage")`), so an unrelated identifier containing `storage` can match.
+- Parameter dependence is matched on token boundaries, not by type or dataflow.
+
+**Fixture:** `test-contracts/while-no-bound-vulnerable/`, `test-contracts/while-no-bound-safe/`

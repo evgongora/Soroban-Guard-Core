@@ -156,6 +156,7 @@ pub mod vesting_cliff;
 pub mod weak_commitment_known;
 pub mod weak_randomness;
 pub mod while_host_condition;
+pub mod while_no_bound;
 pub mod withdraw_auth;
 pub mod wrapping_balance_op;
 pub mod zero_amount;
@@ -309,6 +310,7 @@ pub use vesting_cliff::VestingCliffCheck;
 pub use weak_commitment_known::WeakCommitmentKnownCheck;
 pub use weak_randomness::WeakRandomnessCheck;
 pub use while_host_condition::WhileHostConditionCheck;
+pub use while_no_bound::WhileNoBoundCheck;
 pub use withdraw_auth::WithdrawAuthCheck;
 pub use wrapping_balance_op::WrappingBalanceOpCheck;
 pub use zero_amount::ZeroAmountCheck;
@@ -459,5 +461,6 @@ pub fn default_checks() -> Vec<Box<dyn Check + Send + Sync>> {
         Box::new(OwnershipNoApprovalInvalidationCheck),
         Box::new(TryIntoUnwrapCheck),
         Box::new(TimestampAsNonceCheck),
+        Box::new(WhileNoBoundCheck),
     ]
 }
