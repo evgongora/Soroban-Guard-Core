@@ -216,3 +216,30 @@ Either condition flags the method once.
 - Only the `Env` binding named `env` counts, mirroring `missing-require-auth`.
 
 **Fixture:** `test-contracts/timestamp-as-nonce-vulnerable/`, `test-contracts/timestamp-as-nonce-safe/`
+
+---
+
+## `upgrade-no-schema-version` (Medium)
+
+**Status:** Phase 2
+
+**What it detects**
+
+Across all `#[contractimpl]` methods in a file:
+
+1. Any call to `update_current_contract_wasm` - the containing function is recorded as the upgrade function.
+2. If no such call is found, the check produces no findings.
+3. Separately, any call to `set` (on a receiver chain containing `.storage()`) where the first argument's token string (lowercased) contains `"version"` or `"schema"` - searched across all functions in the file.
+4. If step 3 finds nothing, the upgrade function from step 1 is flagged.
+
+**Why it matters**
+
+When a contract upgrades itself via `env.deployer().update_current_contract_wasm(...)`, the storage layout may change between versions. Without a schema or version key in persistent storage, the new code has no way to detect it is reading data written by an older layout. This leads to silent corruption or panics on deserialization.
+
+**Limitations**
+
+- Syntactic, not semantic: any storage `set` call whose key tokens contain `"version"` or `"schema"` satisfies the check regardless of storage tier or actual runtime value.
+- Does not verify the version key is written atomically with the upgrade call, only that it exists somewhere in the file.
+- Token matching is case-insensitive but purely textual - a key named `SCHEMA_VERSION` constant satisfies it only if those characters appear in the token stream at the call site.
+
+**Fixture:** `test-contracts/upgrade-no-schema-version-vulnerable/`, `test-contracts/upgrade-no-schema-version-safe/`
